@@ -15,6 +15,10 @@ import {
   Palette,
   Pencil,
   Plus,
+  QrCode,
+  Copy,
+  Download,
+  ExternalLink,
   Save,
   ShieldCheck,
   Sparkles,
@@ -24,6 +28,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { QRCodeSVG } from "qrcode.react";
 import { trpc } from "../lib/trpc";
 import { uploadAdminImage } from "../lib/upload";
 
@@ -68,7 +73,7 @@ type ProductForm = {
   isFeatured: boolean;
 };
 
-type AdminSection = "settings" | "categories" | "products";
+type AdminSection = "settings" | "categories" | "products" | "qr";
 
 type AdminCategory = {
   id: number;
@@ -462,7 +467,7 @@ export function AdminPage() {
           </div>
 
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-            <a href="/" target="_blank" rel="noreferrer" className="brand-secondary-button flex-1 sm:flex-none">
+            <a href={`/menu/${encodeURIComponent(form.publicSlug || "al-malqa")}`} target="_blank" rel="noreferrer" className="brand-secondary-button flex-1 sm:flex-none">
               <Eye className="h-4 w-4" />
               معاينة العميل
             </a>
@@ -477,6 +482,7 @@ export function AdminPage() {
           <SectionButton active={section === "settings"} onClick={() => setSection("settings")} icon={<Palette className="h-4 w-4" />} label="الهوية والإعدادات" />
           <SectionButton active={section === "categories"} onClick={() => setSection("categories")} icon={<Layers3 className="h-4 w-4" />} label="الأقسام" count={categories.data?.length ?? 0} />
           <SectionButton active={section === "products"} onClick={() => setSection("products")} icon={<PackageOpen className="h-4 w-4" />} label="الأصناف" count={products.data?.length ?? 0} />
+          <SectionButton active={section === "qr"} onClick={() => setSection("qr")} icon={<QrCode className="h-4 w-4" />} label="QR العميل" />
         </div>
 
         {section === "settings" ? (
@@ -497,6 +503,8 @@ export function AdminPage() {
             isToggling={setCategoryVisibility.isPending}
             isDeleting={deleteCategory.isPending}
           />
+        ) : section === "qr" ? (
+          <CustomerQrSection form={form} setField={setField} onSave={() => updateSettings.mutate(form)} isSaving={updateSettings.isPending} />
         ) : (
           <ProductsSection
             form={form}
@@ -630,6 +638,291 @@ function SettingsSection({
         </div>
       </aside>
     </div>
+  );
+}
+
+
+
+async function renderQrToCanvas(svgElement: SVGSVGElement, size = 1600) {
+  const svgCopy = svgElement.cloneNode(true) as SVGSVGElement;
+  svgCopy.setAttribute("width", String(size));
+  svgCopy.setAttribute("height", String(size));
+
+  const svgText = new XMLSerializer().serializeToString(svgCopy);
+  const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+  const svgUrl = URL.createObjectURL(svgBlob);
+
+  try {
+    const image = new Image();
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("تعذر تجهيز QR للتنزيل"));
+      image.src = svgUrl;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext("2d");
+
+    if (!context) throw new Error("تعذر تجهيز الصورة");
+
+    context.fillStyle = "#FFFFFF";
+    context.fillRect(0, 0, size, size);
+    context.drawImage(image, 0, 0, size, size);
+    return canvas;
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function canvasToPngBlob(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("تعذر إنشاء ملف PNG"));
+    }, "image/png");
+  });
+}
+
+function canvasToPdfBlob(canvas: HTMLCanvasElement) {
+  const dataUrl = canvas.toDataURL("image/jpeg", 1);
+  const base64 = dataUrl.split(",")[1] ?? "";
+  const binary = atob(base64);
+  const jpegBytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    jpegBytes[index] = binary.charCodeAt(index);
+  }
+
+  const encoder = new TextEncoder();
+  const chunks: Uint8Array[] = [];
+  const offsets: number[] = [0];
+  let byteLength = 0;
+
+  const appendBytes = (bytes: Uint8Array) => {
+    chunks.push(bytes);
+    byteLength += bytes.length;
+  };
+
+  const appendText = (value: string) => appendBytes(encoder.encode(value));
+
+  const startObject = (objectNumber: number) => {
+    offsets[objectNumber] = byteLength;
+    appendText(`${objectNumber} 0 obj\n`);
+  };
+
+  appendText("%PDF-1.4\n");
+
+  startObject(1);
+  appendText("<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+
+  startObject(2);
+  appendText("<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+
+  startObject(3);
+  appendText(
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
+  );
+
+  startObject(4);
+  appendText(
+    `<< /Type /XObject /Subtype /Image /Width ${canvas.width} /Height ${canvas.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >>\nstream\n`,
+  );
+  appendBytes(jpegBytes);
+  appendText("\nendstream\nendobj\n");
+
+  const qrSize = 360;
+  const x = (595 - qrSize) / 2;
+  const y = (842 - qrSize) / 2;
+  const content = `q\n${qrSize} 0 0 ${qrSize} ${x} ${y} cm\n/Im0 Do\nQ\n`;
+  const contentBytes = encoder.encode(content);
+
+  startObject(5);
+  appendText(`<< /Length ${contentBytes.length} >>\nstream\n`);
+  appendBytes(contentBytes);
+  appendText("endstream\nendobj\n");
+
+  const xrefOffset = byteLength;
+  appendText("xref\n0 6\n");
+  appendText("0000000000 65535 f \n");
+  for (let objectNumber = 1; objectNumber <= 5; objectNumber += 1) {
+    appendText(`${String(offsets[objectNumber]).padStart(10, "0")} 00000 n \n`);
+  }
+  appendText(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+
+  return new Blob(chunks, { type: "application/pdf" });
+}
+
+function CustomerQrSection({
+  form,
+  setField,
+  onSave,
+  isSaving,
+}: {
+  form: SettingsForm;
+  setField: <K extends keyof SettingsForm>(key: K, value: SettingsForm[K]) => void;
+  onSave: () => void;
+  isSaving: boolean;
+}) {
+  const slug = form.publicSlug.trim() || "al-malqa";
+  const defaultMenuUrl = `${window.location.origin}/menu/${encodeURIComponent(slug)}`;
+  const [menuUrl, setMenuUrl] = useState(() => localStorage.getItem("customer-menu-url") || defaultMenuUrl);
+  const [isEditingMenuUrl, setIsEditingMenuUrl] = useState(false);
+
+  function saveMenuUrl() {
+    const value = menuUrl.trim();
+    if (!/^https?:\/\//i.test(value)) {
+      toast.error("اكتب رابطًا كاملًا يبدأ بـ http:// أو https://");
+      return;
+    }
+    localStorage.setItem("customer-menu-url", value);
+    setMenuUrl(value);
+    setIsEditingMenuUrl(false);
+    toast.success("تم حفظ رابط المنيو وتحديث QR");
+  }
+
+  async function copyMenuUrl() {
+    try {
+      await navigator.clipboard.writeText(menuUrl);
+      toast.success("تم نسخ رابط منيو العميل");
+    } catch {
+      toast.error("تعذر نسخ الرابط تلقائيًا");
+    }
+  }
+
+  async function downloadQr(format: "png" | "pdf") {
+    try {
+      const svgElement = document.getElementById("customer-menu-qr") as SVGSVGElement | null;
+      if (!svgElement) throw new Error("تعذر العثور على QR");
+
+      const canvas = await renderQrToCanvas(svgElement);
+
+      if (format === "png") {
+        const pngBlob = await canvasToPngBlob(canvas);
+        downloadBlob(pngBlob, "al-malqa-menu-qr.png");
+        toast.success("تم تنزيل QR كصورة PNG");
+        return;
+      }
+
+      const pdfBlob = canvasToPdfBlob(canvas);
+      downloadBlob(pdfBlob, "al-malqa-menu-qr.pdf");
+      toast.success("تم تنزيل QR كملف PDF");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر تنزيل QR");
+    }
+  }
+
+  return (
+    <section className="mt-6 grid min-w-0 gap-5 lg:grid-cols-[0.8fr_1.2fr] xl:gap-6">
+      <div className="brand-panel min-w-0 p-5 text-center sm:p-7">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-lg" style={{ backgroundColor: form.primaryColor }}>
+          <QrCode className="h-6 w-6" />
+        </div>
+        <p className="brand-kicker mt-5">CUSTOMER QR</p>
+        <h2 className="mt-1 text-2xl font-bold text-[#3d2b20]">QR منيو العميل</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-7 text-[#8e735f]">
+          عند تغيير رابط المنيو وحفظه يتحدث QR تلقائيًا للرابط الجديد.
+        </p>
+        <div className="mx-auto mt-6 w-fit rounded-[28px] border border-[#5A3825]/10 bg-white p-5 shadow-[0_18px_55px_rgba(65,39,24,.10)]">
+          <QRCodeSVG id="customer-menu-qr" value={menuUrl} size={250} bgColor="#FFFFFF" fgColor={form.primaryColor} level="H" />
+        </div>
+        <p className="mt-4 break-all text-xs leading-6 text-[#9a806c]">QR الحالي يشير إلى: {menuUrl}</p>
+
+        <div className="mx-auto mt-4 grid max-w-sm grid-cols-1 gap-3 min-[420px]:grid-cols-2">
+          <button type="button" onClick={() => void downloadQr("png")} className="brand-secondary-button w-full justify-center">
+            <Download className="h-4 w-4" />
+            تنزيل صورة PNG
+          </button>
+          <button type="button" onClick={() => void downloadQr("pdf")} className="brand-secondary-button w-full justify-center">
+            <Download className="h-4 w-4" />
+            تنزيل PDF
+          </button>
+        </div>
+      </div>
+
+      <div className="brand-panel min-w-0 p-5 sm:p-7">
+        <div className="flex min-w-0 items-start justify-between gap-4 border-b border-[#5A3825]/10 pb-5">
+          <div className="min-w-0">
+            <p className="brand-kicker">PUBLIC MENU LINK</p>
+            <h2 className="mt-1 text-2xl font-bold text-[#3d2b20]">رابط المنيو العام</h2>
+            <p className="mt-2 text-sm leading-7 text-[#8e735f]">
+              اكتب أي رابط كامل تريده ثم اضغط حفظ. بعد الحفظ يصبح هو رابط QR مباشرة.
+            </p>
+          </div>
+          <ExternalLink className="mt-1 h-6 w-6 shrink-0 text-[#9b7758]" />
+        </div>
+
+        <div className="mt-6">
+          <label className="mb-2 block text-sm font-bold text-[#5a4232]">رابط المنيو</label>
+          <div className="flex min-w-0 items-center gap-2" dir="ltr">
+            <input
+              className="brand-input min-w-0 flex-1 text-left disabled:cursor-default disabled:opacity-100"
+              dir="ltr"
+              value={menuUrl}
+              onChange={(e) => setMenuUrl(e.target.value)}
+              placeholder="https://example.com/menu"
+              disabled={!isEditingMenuUrl}
+            />
+            <button
+              type="button"
+              onClick={() => setIsEditingMenuUrl(true)}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#5A3825]/15 bg-white text-[#5A3825] transition hover:bg-[#f7efe7]"
+              aria-label="تعديل رابط المنيو"
+              title="تعديل الرابط"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          </div>
+          <p className="mt-2 text-xs leading-6 text-[#9a806c]">
+            {isEditingMenuUrl
+              ? "عدّل الرابط ثم اضغط حفظ. بعد الحفظ سيتم قفل الحقل تلقائيًا."
+              : "الرابط محفوظ ومقفل. اضغط أيقونة التعديل لتغييره."}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={saveMenuUrl}
+          className="brand-primary-button mt-4 w-full justify-center disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          حفظ رابط المنيو وتحديث QR
+        </button>
+
+        <div className="mt-6 rounded-2xl border border-[#5A3825]/10 bg-[#fbf7f2] p-4">
+          <span className="mb-2 block text-xs font-bold text-[#90735e]">الرابط الحالي</span>
+          <div dir="ltr" className="break-all rounded-xl bg-white px-4 py-3 text-left text-sm text-[#5a4232] shadow-sm">
+            {menuUrl}
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={() => void copyMenuUrl()} className="brand-secondary-button w-full justify-center">
+            <Copy className="h-4 w-4" />
+            نسخ الرابط
+          </button>
+          <a href={menuUrl} target="_blank" rel="noreferrer" className="brand-primary-button w-full justify-center">
+            <ExternalLink className="h-4 w-4" />
+            فتح منيو العميل
+          </a>
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-amber-700/15 bg-amber-50 p-4 text-sm leading-7 text-amber-900">
+          أثناء التطوير المحلي سيحتوي QR على عنوان هذا الجهاز الحالي. اختبار المسح من جوال حقيقي يحتاج رابطًا يمكن للجوال الوصول إليه.
+        </div>
+      </div>
+    </section>
   );
 }
 

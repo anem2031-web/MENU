@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS = {
   currency: "SAR",
   defaultLanguage: "ar" as const,
   publicSlug: "al-malqa",
+  publicBaseUrl: "",
   isPublished: 1,
 };
 
@@ -54,6 +55,7 @@ function serializeSettings(settings: Awaited<ReturnType<typeof getCafeSettings>>
     currency: settings.currency,
     defaultLanguage: settings.defaultLanguage,
     publicSlug: settings.publicSlug,
+    publicBaseUrl: settings.publicBaseUrl ?? "",
     isPublished: settings.isPublished === 1,
   };
 }
@@ -195,6 +197,14 @@ const settingsInput = z.object({
     .min(2)
     .max(120)
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "الرابط المختصر يجب أن يكون أحرفًا إنجليزية صغيرة وأرقامًا وشرطات"),
+  publicBaseUrl: z
+    .string()
+    .trim()
+    .max(1000)
+    .refine(
+      (value) => value === "" || /^https?:\/\//i.test(value),
+      "رابط المنيو يجب أن يبدأ بـ http:// أو https://",
+    ),
   isPublished: z.boolean(),
 });
 
@@ -264,6 +274,7 @@ const adminRouter = router({
           currency: input.currency.toUpperCase(),
           defaultLanguage: input.defaultLanguage,
           publicSlug: input.publicSlug,
+          publicBaseUrl: input.publicBaseUrl,
           isPublished: input.isPublished ? 1 : 0,
         })
         .where(eq(cafeSettings.id, current.id));

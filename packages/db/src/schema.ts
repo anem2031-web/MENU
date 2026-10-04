@@ -82,6 +82,10 @@ export const cafeSettings = mysqlTable(
       .notNull()
       .default("al-malqa"),
 
+    publicBaseUrl: varchar("public_base_url", { length: 1000 })
+      .notNull()
+      .default(""),
+
     isPublished: int("is_published").notNull().default(1),
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
