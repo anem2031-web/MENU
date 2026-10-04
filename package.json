@@ -9,6 +9,7 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
     "verify:structure": "node scripts/verify-structure.mjs",
-    "verify:responsive": "node scripts/verify-responsive.mjs"
+    "verify:responsive": "node scripts/verify-responsive.mjs",
+    "start": "pnpm --filter @almalqa/server start"
   }
 }

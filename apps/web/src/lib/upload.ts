@@ -1,4 +1,6 @@
-const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+const apiUrl = import.meta.env.DEV
+  ? (import.meta.env.VITE_API_URL ?? "http://localhost:3001")
+  : "";
 
 export type UploadedImage = {
   key: string;

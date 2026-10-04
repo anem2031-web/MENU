@@ -1,4 +1,7 @@
 import "dotenv/config";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import express, {
   type NextFunction,
@@ -13,18 +16,25 @@ import { getImageObject } from "./storage/s3.js";
 
 const app = express();
 
-const port = Number(process.env.SERVER_PORT ?? 3001);
+const isProduction = process.env.NODE_ENV === "production";
+const port = Number(
+  process.env.SERVER_PORT ?? process.env.PORT ?? 3001,
+);
 const clientOrigin =
   process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
 
 app.disable("x-powered-by");
 
-app.use(
-  cors({
-    origin: clientOrigin,
-    credentials: true,
-  }),
-);
+// In production the frontend and API are served from the same origin,
+// so CORS is not needed. Keep it only for local Vite development.
+if (!isProduction) {
+  app.use(
+    cors({
+      origin: clientOrigin,
+      credentials: true,
+    }),
+  );
+}
 
 app.use(express.json({ limit: "1mb" }));
 
@@ -110,6 +120,36 @@ app.use(
   }),
 );
 
+if (isProduction) {
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  const webDistPath = resolve(currentDir, "../../web/dist");
+  const indexHtmlPath = resolve(webDistPath, "index.html");
+
+  if (!existsSync(indexHtmlPath)) {
+    throw new Error(
+      `Frontend build not found at ${indexHtmlPath}. Run the root build before starting the server.`,
+    );
+  }
+
+  app.use(express.static(webDistPath));
+
+  // SPA fallback: client-side routes such as /menu/... and /admin/...
+  // should all return Vite's index.html. API routes are never rewritten.
+  app.get("*", (req, res, next) => {
+    if (
+      req.path === "/api" ||
+      req.path.startsWith("/api/") ||
+      req.path === "/trpc" ||
+      req.path.startsWith("/trpc/")
+    ) {
+      next();
+      return;
+    }
+
+    res.sendFile(indexHtmlPath);
+  });
+}
+
 app.use(
   (
     error: unknown,
@@ -130,8 +170,8 @@ app.use(
   },
 );
 
-app.listen(port, () => {
+app.listen(port, "0.0.0.0", () => {
   console.log(
-    `Al Malqa API listening on http://localhost:${port}`,
+    `Al Malqa app listening on http://0.0.0.0:${port}`,
   );
 });

@@ -8,15 +8,7 @@
     "types": [
       "node"
     ],
-    "baseUrl": ".",
-    "paths": {
-      "@almalqa/shared": [
-        "../../packages/shared/src/index.ts"
-      ],
-      "@almalqa/db": [
-        "../../packages/db/src/index.ts"
-      ]
-    }
+    "rootDir": "src"
   },
   "include": [
     "src"
