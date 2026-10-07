@@ -58,6 +58,17 @@ const defaultBrand = {
   descriptionAr: "تجربة راقية .. ببساطة",
   descriptionEn: "A refined experience in simple ways",
   logoUrl: "",
+  welcomeEnabled: true,
+  welcomeLogoKey: "",
+  welcomeLogoUrl: "",
+  welcomeTitleAr: "أهلًا وسهلًا بكم",
+  welcomeTitleEn: "Welcome",
+  welcomeSubtitleAr: "في قهوة الملقا",
+  welcomeSubtitleEn: "at Al Malqa Cafe",
+  welcomeDescriptionAr: "نجعل كل زيارة لحظة دافئة ومميزة",
+  welcomeDescriptionEn: "We make every visit a warm and memorable moment",
+  welcomeButtonAr: "استعرض المنيو",
+  welcomeButtonEn: "View Menu",
   primaryColor: "#5A3825",
   backgroundColor: "#F7F1EA",
   currency: "SAR",
@@ -155,6 +166,7 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
     useState<MobileScreen>("categories");
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileSearchTerm, setMobileSearchTerm] = useState("");
+  const [welcomeEntered, setWelcomeEntered] = useState(false);
 
   const languageInitialized = useRef(false);
   const menuSectionRef = useRef<HTMLElement | null>(null);
@@ -296,6 +308,21 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  if (settings.isLoading) {
+    return (
+      <main
+        dir="rtl"
+        className="flex min-h-screen min-h-dvh items-center justify-center p-5"
+        style={{ backgroundColor: defaultBrand.backgroundColor }}
+      >
+        <div className="text-center" style={{ color: defaultBrand.primaryColor }}>
+          <Coffee className="mx-auto h-9 w-9 animate-pulse" />
+          <p className="mt-4 text-sm font-bold">جاري تجهيز المنيو...</p>
+        </div>
+      </main>
+    );
+  }
+
   if (settings.isError) {
     return (
       <main
@@ -395,6 +422,26 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
           </div>
         </section>
       </main>
+    );
+  }
+
+  if (brand.welcomeEnabled && !welcomeEntered) {
+    return (
+      <WelcomeScreen
+        brand={brand}
+        language={language}
+        onEnter={() => {
+          setWelcomeEntered(true);
+          setMobileScreen("categories");
+          setActiveCategoryId(0);
+          setMobileSearchOpen(false);
+          setMobileSearchTerm("");
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+        onToggleLanguage={() =>
+          setLanguage((current) => current === "ar" ? "en" : "ar")
+        }
+      />
     );
   }
 
@@ -803,6 +850,129 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
           onClose={() => setSelectedProduct(null)}
         />
       ) : null}
+    </main>
+  );
+}
+
+function WelcomeScreen({
+  brand,
+  language,
+  onEnter,
+  onToggleLanguage,
+}: {
+  brand: {
+    nameAr: string;
+    nameEn: string;
+    primaryColor: string;
+    backgroundColor: string;
+    welcomeLogoUrl: string;
+    welcomeTitleAr: string;
+    welcomeTitleEn: string;
+    welcomeSubtitleAr: string;
+    welcomeSubtitleEn: string;
+    welcomeDescriptionAr: string;
+    welcomeDescriptionEn: string;
+    welcomeButtonAr: string;
+    welcomeButtonEn: string;
+  };
+  language: Language;
+  onEnter: () => void;
+  onToggleLanguage: () => void;
+}) {
+  const isArabic = language === "ar";
+  const title = localize(language, brand.welcomeTitleAr, brand.welcomeTitleEn);
+  const subtitle = localize(language, brand.welcomeSubtitleAr, brand.welcomeSubtitleEn);
+  const description = localize(language, brand.welcomeDescriptionAr, brand.welcomeDescriptionEn);
+  const buttonLabel = localize(language, brand.welcomeButtonAr, brand.welcomeButtonEn);
+
+  return (
+    <main
+      dir={isArabic ? "rtl" : "ltr"}
+      className="relative isolate flex min-h-screen min-h-dvh overflow-hidden px-[max(1.25rem,var(--safe-left))] py-[max(1.25rem,var(--safe-top))]"
+      style={{ backgroundColor: brand.backgroundColor, color: brand.primaryColor }}
+    >
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+        <div
+          className="absolute -right-24 -top-24 h-80 w-80 rounded-full blur-2xl sm:h-[30rem] sm:w-[30rem]"
+          style={{ backgroundColor: `${brand.primaryColor}10` }}
+        />
+        <div
+          className="absolute -bottom-32 -left-32 h-96 w-96 rounded-full blur-3xl sm:h-[34rem] sm:w-[34rem]"
+          style={{ backgroundColor: `${brand.primaryColor}0D` }}
+        />
+        <div
+          className="absolute left-1/2 top-[16%] h-48 w-48 -translate-x-1/2 rounded-full border sm:h-64 sm:w-64"
+          style={{ borderColor: `${brand.primaryColor}12` }}
+        />
+        <div
+          className="absolute left-1/2 top-[16%] h-56 w-56 -translate-x-1/2 rounded-full border sm:h-72 sm:w-72"
+          style={{ borderColor: `${brand.primaryColor}0A` }}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={onToggleLanguage}
+        className="absolute end-[max(1rem,var(--safe-right))] top-[max(1rem,var(--safe-top))] z-20 flex min-h-11 items-center gap-2 rounded-full border border-black/5 bg-white/55 px-3.5 text-xs font-bold shadow-sm backdrop-blur-md"
+        style={{ color: brand.primaryColor }}
+        aria-label={isArabic ? "Change language" : "تغيير اللغة"}
+      >
+        <Languages className="h-4 w-4" />
+        {isArabic ? "EN" : "عربي"}
+      </button>
+
+      <section className="relative z-10 m-auto flex w-full max-w-xl flex-col items-center text-center">
+        {brand.welcomeLogoUrl ? (
+          <div className="mb-7 flex h-32 w-32 items-center justify-center rounded-full border border-black/5 bg-white/60 p-4 shadow-[0_20px_55px_rgba(68,42,26,0.14)] backdrop-blur-xl sm:h-40 sm:w-40 sm:p-5">
+            <img
+              src={brand.welcomeLogoUrl}
+              alt={isArabic ? "شعار المقهى" : "Cafe logo"}
+              className="max-h-full max-w-full object-contain"
+            />
+          </div>
+        ) : null}
+
+        <p
+          className="brand-english text-[9px] font-bold tracking-[0.32em] opacity-55 sm:text-[10px]"
+          style={{ color: brand.primaryColor }}
+        >
+          {isArabic ? "WELCOME" : brand.nameEn || "AL MALQA CAFE"}
+        </p>
+
+        <h1 className="text-safe-wrap mt-3 text-4xl font-black leading-[1.25] sm:text-5xl" style={{ color: brand.primaryColor }}>
+          {title || (isArabic ? "أهلًا وسهلًا بكم" : "Welcome")}
+        </h1>
+
+        <p className="mt-3 text-lg font-extrabold sm:text-xl" style={{ color: brand.primaryColor }}>
+          {subtitle || (isArabic ? brand.nameAr : brand.nameEn || brand.nameAr)}
+        </p>
+
+        <div className="my-6 flex items-center gap-3" aria-hidden="true">
+          <span className="h-px w-10 opacity-25" style={{ backgroundColor: brand.primaryColor }} />
+          <Coffee className="h-4 w-4 opacity-45" />
+          <span className="h-px w-10 opacity-25" style={{ backgroundColor: brand.primaryColor }} />
+        </div>
+
+        {description ? (
+          <p className="text-safe-wrap mx-auto max-w-md text-sm font-medium leading-7 opacity-70 sm:text-base sm:leading-8">
+            {description}
+          </p>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={onEnter}
+          className="mt-9 flex min-h-14 w-full max-w-sm items-center justify-center gap-3 rounded-2xl px-6 py-4 text-base font-black text-white shadow-[0_18px_38px_rgba(68,42,26,0.18)] transition active:scale-[0.99] sm:w-auto sm:min-w-72"
+          style={{ backgroundColor: brand.primaryColor }}
+        >
+          <span>{buttonLabel || (isArabic ? "استعرض المنيو" : "View Menu")}</span>
+          {isArabic ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+        </button>
+
+        <p className="brand-english mt-8 text-[8px] tracking-[0.2em] opacity-35">
+          {isArabic ? brand.nameEn : brand.nameAr}
+        </p>
+      </section>
     </main>
   );
 }

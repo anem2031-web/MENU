@@ -62,6 +62,30 @@ export const cafeSettings = mysqlTable(
     logoKey: varchar("logo_key", { length: 500 }),
     logoUrl: varchar("logo_url", { length: 1000 }),
 
+    welcomeEnabled: int("welcome_enabled").notNull().default(1),
+    welcomeLogoKey: varchar("welcome_logo_key", { length: 500 }),
+    welcomeLogoUrl: varchar("welcome_logo_url", { length: 1000 }),
+    welcomeTitleAr: varchar("welcome_title_ar", { length: 180 })
+      .notNull()
+      .default("أهلًا وسهلًا بكم"),
+    welcomeTitleEn: varchar("welcome_title_en", { length: 180 })
+      .notNull()
+      .default("Welcome"),
+    welcomeSubtitleAr: varchar("welcome_subtitle_ar", { length: 180 })
+      .notNull()
+      .default("في قهوة الملقا"),
+    welcomeSubtitleEn: varchar("welcome_subtitle_en", { length: 180 })
+      .notNull()
+      .default("at Al Malqa Cafe"),
+    welcomeDescriptionAr: text("welcome_description_ar"),
+    welcomeDescriptionEn: text("welcome_description_en"),
+    welcomeButtonAr: varchar("welcome_button_ar", { length: 120 })
+      .notNull()
+      .default("استعرض المنيو"),
+    welcomeButtonEn: varchar("welcome_button_en", { length: 120 })
+      .notNull()
+      .default("View Menu"),
+
     primaryColor: varchar("primary_color", { length: 20 })
       .notNull()
       .default("#5A3825"),

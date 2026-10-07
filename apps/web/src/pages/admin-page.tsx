@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Banknote,
   CheckCircle2,
+  ChevronLeft,
   Eye,
   EyeOff,
   Globe2,
@@ -39,6 +40,17 @@ type SettingsForm = {
   descriptionEn: string;
   logoKey: string;
   logoUrl: string;
+  welcomeEnabled: boolean;
+  welcomeLogoKey: string;
+  welcomeLogoUrl: string;
+  welcomeTitleAr: string;
+  welcomeTitleEn: string;
+  welcomeSubtitleAr: string;
+  welcomeSubtitleEn: string;
+  welcomeDescriptionAr: string;
+  welcomeDescriptionEn: string;
+  welcomeButtonAr: string;
+  welcomeButtonEn: string;
   primaryColor: string;
   backgroundColor: string;
   currency: string;
@@ -73,7 +85,7 @@ type ProductForm = {
   isFeatured: boolean;
 };
 
-type AdminSection = "settings" | "categories" | "products" | "qr";
+type AdminSection = "settings" | "welcome" | "categories" | "products" | "qr";
 
 type AdminCategory = {
   id: number;
@@ -110,6 +122,17 @@ const emptySettings: SettingsForm = {
   descriptionEn: "A refined experience in simple ways",
   logoKey: "",
   logoUrl: "",
+  welcomeEnabled: true,
+  welcomeLogoKey: "",
+  welcomeLogoUrl: "",
+  welcomeTitleAr: "أهلًا وسهلًا بكم",
+  welcomeTitleEn: "Welcome",
+  welcomeSubtitleAr: "في قهوة الملقا",
+  welcomeSubtitleEn: "at Al Malqa Cafe",
+  welcomeDescriptionAr: "نجعل كل زيارة لحظة دافئة ومميزة",
+  welcomeDescriptionEn: "We make every visit a warm and memorable moment",
+  welcomeButtonAr: "استعرض المنيو",
+  welcomeButtonEn: "View Menu",
   primaryColor: "#5A3825",
   backgroundColor: "#F7F1EA",
   currency: "SAR",
@@ -180,6 +203,17 @@ export function AdminPage() {
       descriptionEn: settings.data.descriptionEn,
       logoKey: settings.data.logoKey,
       logoUrl: settings.data.logoUrl,
+      welcomeEnabled: settings.data.welcomeEnabled,
+      welcomeLogoKey: settings.data.welcomeLogoKey,
+      welcomeLogoUrl: settings.data.welcomeLogoUrl,
+      welcomeTitleAr: settings.data.welcomeTitleAr,
+      welcomeTitleEn: settings.data.welcomeTitleEn,
+      welcomeSubtitleAr: settings.data.welcomeSubtitleAr,
+      welcomeSubtitleEn: settings.data.welcomeSubtitleEn,
+      welcomeDescriptionAr: settings.data.welcomeDescriptionAr,
+      welcomeDescriptionEn: settings.data.welcomeDescriptionEn,
+      welcomeButtonAr: settings.data.welcomeButtonAr,
+      welcomeButtonEn: settings.data.welcomeButtonEn,
       primaryColor: settings.data.primaryColor,
       backgroundColor: settings.data.backgroundColor,
       currency: settings.data.currency,
@@ -480,6 +514,7 @@ export function AdminPage() {
 
         <div className="admin-tabs horizontal-scroll -mx-1 mt-5 px-1">
           <SectionButton active={section === "settings"} onClick={() => setSection("settings")} icon={<Palette className="h-4 w-4" />} label="الهوية والإعدادات" />
+          <SectionButton active={section === "welcome"} onClick={() => setSection("welcome")} icon={<Sparkles className="h-4 w-4" />} label="صفحة الترحيب" />
           <SectionButton active={section === "categories"} onClick={() => setSection("categories")} icon={<Layers3 className="h-4 w-4" />} label="الأقسام" count={categories.data?.length ?? 0} />
           <SectionButton active={section === "products"} onClick={() => setSection("products")} icon={<PackageOpen className="h-4 w-4" />} label="الأصناف" count={products.data?.length ?? 0} />
           <SectionButton active={section === "qr"} onClick={() => setSection("qr")} icon={<QrCode className="h-4 w-4" />} label="QR العميل" />
@@ -487,6 +522,8 @@ export function AdminPage() {
 
         {section === "settings" ? (
           <SettingsSection form={form} setField={setField} onSubmit={handleSettingsSubmit} isPending={updateSettings.isPending} isLoading={settings.isLoading} />
+        ) : section === "welcome" ? (
+          <WelcomeSettingsSection form={form} setField={setField} onSubmit={handleSettingsSubmit} isPending={updateSettings.isPending} isLoading={settings.isLoading} />
         ) : section === "categories" ? (
           <CategoriesSection
             form={form}
@@ -641,7 +678,144 @@ function SettingsSection({
   );
 }
 
+function WelcomeSettingsSection({
+  form,
+  setField,
+  onSubmit,
+  isPending,
+  isLoading,
+}: {
+  form: SettingsForm;
+  setField: <K extends keyof SettingsForm>(key: K, value: SettingsForm[K]) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  isPending: boolean;
+  isLoading: boolean;
+}) {
+  return (
+    <div className="mt-6 grid min-w-0 gap-5 lg:grid-cols-[1.35fr_0.65fr] xl:gap-6">
+      <form className="brand-panel min-w-0 p-4 min-[390px]:p-5 sm:p-7" onSubmit={onSubmit}>
+        <div className="flex min-w-0 items-start justify-between gap-3 border-b border-[#5A3825]/10 pb-5 sm:gap-4">
+          <div>
+            <p className="brand-kicker">WELCOME PAGE</p>
+            <h2 className="mt-1 text-2xl font-bold text-[#3d2b20]">إعدادات صفحة الترحيب</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-7 text-[#8e735f]">أول شاشة يراها العميل قبل الدخول إلى الأقسام. الخلفية تعتمد هوية الكوفي الحالية بدون صورة مستقلة.</p>
+          </div>
+          <Sparkles className="mt-1 h-6 w-6 text-[#9b7758]" />
+        </div>
 
+        <ToggleCard
+          label="تفعيل صفحة الترحيب"
+          hint="عند إيقافها يدخل العميل مباشرة إلى صفحة الأقسام."
+          checked={form.welcomeEnabled}
+          onChange={(checked) => setField("welcomeEnabled", checked)}
+        />
+
+        <div className="mt-6 grid min-w-0 gap-5 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <ImageUploadField
+              label="شعار صفحة الترحيب"
+              hint="يمكن إضافة الشعار أو استبداله أو حذفه. لا توجد صورة خلفية مستقلة للصفحة."
+              kind="logo"
+              imageUrl={form.welcomeLogoUrl}
+              onUploaded={(image) => { setField("welcomeLogoKey", image.key); setField("welcomeLogoUrl", image.url); }}
+              onUrlChange={(url) => { setField("welcomeLogoKey", ""); setField("welcomeLogoUrl", url); }}
+              onClear={() => { setField("welcomeLogoKey", ""); setField("welcomeLogoUrl", ""); }}
+            />
+          </div>
+
+          <Field label="العنوان الرئيسي بالعربي">
+            <input className="brand-input" value={form.welcomeTitleAr} onChange={(e) => setField("welcomeTitleAr", e.target.value)} required />
+          </Field>
+          <Field label="العنوان الرئيسي بالإنجليزي">
+            <input className="brand-input text-left" dir="ltr" value={form.welcomeTitleEn} onChange={(e) => setField("welcomeTitleEn", e.target.value)} />
+          </Field>
+
+          <Field label="النص الفرعي بالعربي">
+            <input className="brand-input" value={form.welcomeSubtitleAr} onChange={(e) => setField("welcomeSubtitleAr", e.target.value)} required />
+          </Field>
+          <Field label="النص الفرعي بالإنجليزي">
+            <input className="brand-input text-left" dir="ltr" value={form.welcomeSubtitleEn} onChange={(e) => setField("welcomeSubtitleEn", e.target.value)} />
+          </Field>
+
+          <Field label="الوصف القصير بالعربي" hint="اختياري">
+            <textarea className="brand-input min-h-24 resize-y" value={form.welcomeDescriptionAr} onChange={(e) => setField("welcomeDescriptionAr", e.target.value)} />
+          </Field>
+          <Field label="الوصف القصير بالإنجليزي" hint="اختياري">
+            <textarea className="brand-input min-h-24 resize-y text-left" dir="ltr" value={form.welcomeDescriptionEn} onChange={(e) => setField("welcomeDescriptionEn", e.target.value)} />
+          </Field>
+
+          <Field label="نص زر الدخول بالعربي">
+            <input className="brand-input" value={form.welcomeButtonAr} onChange={(e) => setField("welcomeButtonAr", e.target.value)} required />
+          </Field>
+          <Field label="نص زر الدخول بالإنجليزي">
+            <input className="brand-input text-left" dir="ltr" value={form.welcomeButtonEn} onChange={(e) => setField("welcomeButtonEn", e.target.value)} />
+          </Field>
+        </div>
+
+        <div className="mt-7 flex flex-col items-stretch gap-4 border-t border-[#5A3825]/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs leading-6 text-[#9a806c]">بعد الحفظ ستظهر الإعدادات الجديدة للعميل عند فتح رابط المنيو من جديد.</p>
+          <button type="submit" disabled={isPending || isLoading} className="brand-primary-button w-full sm:w-auto">
+            <Save className="h-5 w-5" />
+            {isPending ? "جاري الحفظ..." : "حفظ صفحة الترحيب"}
+          </button>
+        </div>
+      </form>
+
+      <aside className="min-w-0 lg:sticky lg:top-[max(1.5rem,var(--safe-top))] lg:self-start">
+        <div className="brand-panel min-w-0 overflow-hidden p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="brand-kicker">LIVE PREVIEW</p>
+              <h2 className="font-bold text-[#3d2b20]">معاينة صفحة الترحيب</h2>
+            </div>
+            <Eye className="h-5 w-5 text-[#8f6c51]" />
+          </div>
+          <WelcomeCustomerPreview form={form} />
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function WelcomeCustomerPreview({ form }: { form: SettingsForm }) {
+  return (
+    <div
+      className="relative flex min-h-[520px] overflow-hidden rounded-[30px] border border-black/5 px-5 py-8 shadow-inner"
+      style={{ backgroundColor: form.backgroundColor }}
+      dir="rtl"
+    >
+      <div className="pointer-events-none absolute -right-16 -top-12 h-56 w-56 rounded-full bg-white/60 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-20 -left-16 h-64 w-64 rounded-full bg-white/35 blur-3xl" />
+      <div className="relative z-[1] m-auto w-full max-w-sm text-center">
+        {form.welcomeLogoUrl ? (
+          <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full border border-black/5 bg-white/55 p-3 shadow-[0_18px_45px_rgba(63,41,27,0.12)] backdrop-blur">
+            <img src={form.welcomeLogoUrl} alt="شعار صفحة الترحيب" className="max-h-full max-w-full object-contain" />
+          </div>
+        ) : (
+          <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full border border-dashed bg-white/35" style={{ borderColor: `${form.primaryColor}44`, color: form.primaryColor }}>
+            <ImageIcon className="h-8 w-8 opacity-55" />
+          </div>
+        )}
+
+        <p className="brand-kicker mt-8" style={{ color: form.primaryColor }}>WELCOME</p>
+        <h3 className="mt-2 text-3xl font-extrabold leading-tight" style={{ color: form.primaryColor }}>
+          {form.welcomeTitleAr || "أهلًا وسهلًا بكم"}
+        </h3>
+        <p className="mt-2 text-base font-bold" style={{ color: form.primaryColor }}>
+          {form.welcomeSubtitleAr || "في قهوة الملقا"}
+        </p>
+        {form.welcomeDescriptionAr ? (
+          <p className="mx-auto mt-5 max-w-xs text-sm leading-7 text-[#7f6858]">{form.welcomeDescriptionAr}</p>
+        ) : null}
+        <div className="mx-auto mt-8 flex min-h-12 w-full max-w-xs items-center justify-center rounded-2xl px-5 py-3 text-sm font-extrabold text-white shadow-lg" style={{ backgroundColor: form.primaryColor }}>
+          {form.welcomeButtonAr || "استعرض المنيو"}
+          <ChevronLeft className="mr-2 h-4 w-4" />
+        </div>
+        {!form.welcomeEnabled ? <div className="mt-4 rounded-xl border border-amber-700/20 bg-amber-50/90 px-3 py-2 text-xs font-bold text-amber-900">صفحة الترحيب مخفية حاليًا</div> : null}
+      </div>
+    </div>
+  );
+}
 
 async function renderQrToCanvas(svgElement: SVGSVGElement, size = 1600) {
   const svgCopy = svgElement.cloneNode(true) as SVGSVGElement;
