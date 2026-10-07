@@ -762,7 +762,15 @@ function canvasToPdfBlob(canvas: HTMLCanvasElement) {
   }
   appendText(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
 
-  return new Blob(chunks, { type: "application/pdf" });
+  const pdfBytes = new Uint8Array(byteLength);
+  let writeOffset = 0;
+
+  for (const chunk of chunks) {
+    pdfBytes.set(chunk, writeOffset);
+    writeOffset += chunk.length;
+  }
+
+  return new Blob([pdfBytes.buffer], { type: "application/pdf" });
 }
 
 function CustomerQrSection({
