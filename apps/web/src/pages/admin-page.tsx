@@ -44,7 +44,6 @@ type SettingsForm = {
   currency: string;
   defaultLanguage: "ar" | "en";
   publicSlug: string;
-  publicBaseUrl: string;
   isPublished: boolean;
 };
 
@@ -116,7 +115,6 @@ const emptySettings: SettingsForm = {
   currency: "SAR",
   defaultLanguage: "ar",
   publicSlug: "al-malqa",
-  publicBaseUrl: "",
   isPublished: true,
 };
 
@@ -187,7 +185,6 @@ export function AdminPage() {
       currency: settings.data.currency,
       defaultLanguage: settings.data.defaultLanguage,
       publicSlug: settings.data.publicSlug,
-      publicBaseUrl: settings.data.publicBaseUrl,
       isPublished: settings.data.isPublished,
     });
   }, [settings.data]);
@@ -507,7 +504,7 @@ export function AdminPage() {
             isDeleting={deleteCategory.isPending}
           />
         ) : section === "qr" ? (
-          <CustomerQrSection form={form} setField={setField} onSave={(publicBaseUrl) => updateSettings.mutate({ ...form, publicBaseUrl })} isSaving={updateSettings.isPending} />
+          <CustomerQrSection form={form} setField={setField} onSave={() => updateSettings.mutate(form)} isSaving={updateSettings.isPending} />
         ) : (
           <ProductsSection
             form={form}
@@ -765,15 +762,7 @@ function canvasToPdfBlob(canvas: HTMLCanvasElement) {
   }
   appendText(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
 
-  const pdfBytes = new Uint8Array(byteLength);
-  let pdfOffset = 0;
-
-  for (const chunk of chunks) {
-    pdfBytes.set(chunk, pdfOffset);
-    pdfOffset += chunk.length;
-  }
-
-  return new Blob([pdfBytes.buffer], { type: "application/pdf" });
+  return new Blob(chunks, { type: "application/pdf" });
 }
 
 function CustomerQrSection({
@@ -784,20 +773,13 @@ function CustomerQrSection({
 }: {
   form: SettingsForm;
   setField: <K extends keyof SettingsForm>(key: K, value: SettingsForm[K]) => void;
-  onSave: (publicBaseUrl: string) => void;
+  onSave: () => void;
   isSaving: boolean;
 }) {
   const slug = form.publicSlug.trim() || "al-malqa";
   const defaultMenuUrl = `${window.location.origin}/menu/${encodeURIComponent(slug)}`;
-  const savedMenuUrl = form.publicBaseUrl.trim() || defaultMenuUrl;
-  const [menuUrl, setMenuUrl] = useState(savedMenuUrl);
+  const [menuUrl, setMenuUrl] = useState(() => localStorage.getItem("customer-menu-url") || defaultMenuUrl);
   const [isEditingMenuUrl, setIsEditingMenuUrl] = useState(false);
-
-  useEffect(() => {
-    if (!isEditingMenuUrl) {
-      setMenuUrl(savedMenuUrl);
-    }
-  }, [savedMenuUrl, isEditingMenuUrl]);
 
   function saveMenuUrl() {
     const value = menuUrl.trim();
@@ -805,9 +787,7 @@ function CustomerQrSection({
       toast.error("اكتب رابطًا كاملًا يبدأ بـ http:// أو https://");
       return;
     }
-
-    setField("publicBaseUrl", value);
-    onSave(value);
+    localStorage.setItem("customer-menu-url", value);
     setMenuUrl(value);
     setIsEditingMenuUrl(false);
     toast.success("تم حفظ رابط المنيو وتحديث QR");
