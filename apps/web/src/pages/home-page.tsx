@@ -11,16 +11,31 @@ import {
   ChevronRight,
   Coffee,
   Crown,
+  Home,
   Image as ImageIcon,
   Languages,
   Layers3,
+  Menu as MenuIcon,
+  MoreHorizontal,
+  Plus,
+  Search,
+  ShoppingBag,
   Sparkles,
   Star,
+  UtensilsCrossed,
   X,
 } from "lucide-react";
 import { trpc } from "../lib/trpc";
 
 type Language = "ar" | "en";
+type MobileScreen = "categories" | "products";
+
+type PublicCategory = {
+  id: number;
+  nameAr: string;
+  nameEn: string;
+  imageUrl: string;
+};
 
 type PublicProduct = {
   id: number;
@@ -136,6 +151,10 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
   const [language, setLanguage] = useState<Language>("ar");
   const [selectedProduct, setSelectedProduct] =
     useState<PublicProduct | null>(null);
+  const [mobileScreen, setMobileScreen] =
+    useState<MobileScreen>("categories");
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileSearchTerm, setMobileSearchTerm] = useState("");
 
   const languageInitialized = useRef(false);
   const menuSectionRef = useRef<HTMLElement | null>(null);
@@ -203,6 +222,36 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
     [categories.data, activeCategoryId],
   );
 
+  const mobileVisibleCategories = useMemo(() => {
+    const term = mobileSearchTerm.trim().toLocaleLowerCase();
+    const rows = (categories.data ?? []) as PublicCategory[];
+
+    if (!term || mobileScreen !== "categories") {
+      return rows;
+    }
+
+    return rows.filter((category) =>
+      `${category.nameAr} ${category.nameEn}`
+        .toLocaleLowerCase()
+        .includes(term),
+    );
+  }, [categories.data, mobileScreen, mobileSearchTerm]);
+
+  const mobileVisibleProducts = useMemo(() => {
+    const term = mobileSearchTerm.trim().toLocaleLowerCase();
+    const rows = filteredProducts;
+
+    if (!term || mobileScreen !== "products") {
+      return rows;
+    }
+
+    return rows.filter((product) =>
+      `${product.nameAr} ${product.nameEn} ${product.categoryNameAr} ${product.categoryNameEn}`
+        .toLocaleLowerCase()
+        .includes(term),
+    );
+  }, [filteredProducts, mobileScreen, mobileSearchTerm]);
+
   const displayName = isArabic
     ? brand.nameAr
     : brand.nameEn || brand.nameAr;
@@ -222,6 +271,29 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
         block: "start",
       });
     });
+  };
+
+  const openMobileCategory = (categoryId: number) => {
+    setActiveCategoryId(categoryId);
+    setMobileScreen("products");
+    setMobileSearchOpen(false);
+    setMobileSearchTerm("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const showMobileCategories = () => {
+    setMobileScreen("categories");
+    setMobileSearchOpen(false);
+    setMobileSearchTerm("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const showAllMobileProducts = () => {
+    setActiveCategoryId(0);
+    setMobileScreen("products");
+    setMobileSearchOpen(false);
+    setMobileSearchTerm("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   if (settings.isError) {
@@ -335,13 +407,45 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
         color: brand.primaryColor,
       }}
     >
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+      <div className="pointer-events-none fixed inset-0 hidden overflow-hidden sm:block">
         <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-white/70 blur-3xl" />
         <div className="absolute left-[-7rem] top-[34rem] h-80 w-80 rounded-full bg-[#C7B099]/20 blur-3xl" />
         <div className="absolute bottom-[-8rem] right-[10%] h-80 w-80 rounded-full bg-white/50 blur-3xl" />
       </div>
 
-      <div className="vip-container relative">
+      <MobileMenuExperience
+        brand={brand}
+        language={language}
+        categories={mobileVisibleCategories}
+        products={mobileVisibleProducts}
+        allCategories={(categories.data ?? []) as PublicCategory[]}
+        activeCategoryId={activeCategoryId}
+        activeCategory={activeCategory as PublicCategory | undefined}
+        screen={mobileScreen}
+        searchOpen={mobileSearchOpen}
+        searchTerm={mobileSearchTerm}
+        categoriesLoading={categories.isLoading}
+        productsLoading={products.isLoading}
+        onSearchToggle={() => {
+          setMobileSearchOpen((current) => !current);
+          setMobileSearchTerm("");
+        }}
+        onSearchChange={setMobileSearchTerm}
+        onOpenCategory={openMobileCategory}
+        onBack={showMobileCategories}
+        onShowAllProducts={showAllMobileProducts}
+        onSelectCategory={(categoryId) => {
+          setActiveCategoryId(categoryId);
+          setMobileScreen("products");
+          setMobileSearchTerm("");
+        }}
+        onOpenProduct={setSelectedProduct}
+        onToggleLanguage={() =>
+          setLanguage((current) => current === "ar" ? "en" : "ar")
+        }
+      />
+
+      <div className="vip-container relative hidden sm:block">
         <header className="px-3 pb-3 pt-[max(0.75rem,var(--safe-top))] min-[390px]:px-4 sm:px-6 sm:pt-5">
           <div className="flex min-w-0 items-center justify-between gap-3 rounded-[22px] border border-black/5 bg-white/55 px-3 py-2.5 shadow-[0_8px_28px_rgba(70,43,28,0.06)] backdrop-blur-xl sm:rounded-[26px] sm:px-4">
             <div className="flex min-w-0 items-center gap-3">
@@ -700,6 +804,348 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
         />
       ) : null}
     </main>
+  );
+}
+
+function MobileMenuExperience({
+  brand,
+  language,
+  categories,
+  products,
+  allCategories,
+  activeCategoryId,
+  activeCategory,
+  screen,
+  searchOpen,
+  searchTerm,
+  categoriesLoading,
+  productsLoading,
+  onSearchToggle,
+  onSearchChange,
+  onOpenCategory,
+  onBack,
+  onShowAllProducts,
+  onSelectCategory,
+  onOpenProduct,
+  onToggleLanguage,
+}: {
+  brand: typeof defaultBrand;
+  language: Language;
+  categories: PublicCategory[];
+  products: PublicProduct[];
+  allCategories: PublicCategory[];
+  activeCategoryId: number;
+  activeCategory: PublicCategory | undefined;
+  screen: MobileScreen;
+  searchOpen: boolean;
+  searchTerm: string;
+  categoriesLoading: boolean;
+  productsLoading: boolean;
+  onSearchToggle: () => void;
+  onSearchChange: (value: string) => void;
+  onOpenCategory: (categoryId: number) => void;
+  onBack: () => void;
+  onShowAllProducts: () => void;
+  onSelectCategory: (categoryId: number) => void;
+  onOpenProduct: (product: PublicProduct) => void;
+  onToggleLanguage: () => void;
+}) {
+  const isArabic = language === "ar";
+  const text = copy[language];
+  const currentTitle = activeCategory
+    ? localize(language, activeCategory.nameAr, activeCategory.nameEn)
+    : text.menuTitle;
+
+  return (
+    <div className="mobile-menu-shell sm:hidden">
+      <header className="mobile-menu-header">
+        <div className="mobile-menu-topbar">
+          <button
+            type="button"
+            className="mobile-icon-button"
+            onClick={screen === "products" ? onBack : onToggleLanguage}
+            aria-label={screen === "products" ? (isArabic ? "العودة للأقسام" : "Back to categories") : (isArabic ? "تغيير اللغة" : "Change language")}
+          >
+            {screen === "products" ? (
+              isArabic ? <ChevronRight className="h-[19px] w-[19px]" /> : <ChevronLeft className="h-[19px] w-[19px]" />
+            ) : (
+              <Languages className="h-[18px] w-[18px]" />
+            )}
+          </button>
+
+          <div className="min-w-0 flex-1 text-center" dir={isArabic ? "rtl" : "ltr"}>
+            <h1 className="truncate text-[18px] font-extrabold leading-7 text-[#30251f]">
+              {screen === "categories" ? text.menuTitle : currentTitle}
+            </h1>
+            {screen === "categories" ? (
+              <p className="mt-0.5 truncate text-[11px] text-[#9b8c82]">
+                {isArabic ? "اختر ما يناسب ذوقك" : "Choose what suits your taste"}
+              </p>
+            ) : null}
+          </div>
+
+          <button
+            type="button"
+            className="mobile-icon-button"
+            onClick={onSearchToggle}
+            aria-label={isArabic ? "بحث" : "Search"}
+          >
+            {searchOpen ? <X className="h-[18px] w-[18px]" /> : <Search className="h-[19px] w-[19px]" />}
+          </button>
+        </div>
+
+        {searchOpen ? (
+          <div className="mobile-search-wrap">
+            <Search className="h-4 w-4 shrink-0 text-[#9c8d83]" />
+            <input
+              autoFocus
+              value={searchTerm}
+              onChange={(event) => onSearchChange(event.target.value)}
+              className="mobile-search-input"
+              placeholder={isArabic ? "ابحث في المنيو..." : "Search the menu..."}
+              aria-label={isArabic ? "بحث في المنيو" : "Search menu"}
+            />
+          </div>
+        ) : null}
+      </header>
+
+      <div className="mobile-menu-content">
+        {screen === "categories" ? (
+          <section aria-label={text.categoriesTitle}>
+            {categoriesLoading ? (
+              <MobileSkeleton count={4} variant="category" />
+            ) : categories.length ? (
+              <div className="space-y-2.5">
+                {categories.map((category) => {
+                  const categoryName = localize(language, category.nameAr, category.nameEn);
+
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      className="mobile-category-card group"
+                      onClick={() => onOpenCategory(category.id)}
+                    >
+                      {category.imageUrl ? (
+                        <img
+                          src={category.imageUrl}
+                          alt={categoryName}
+                          className="absolute inset-0 h-full w-full object-cover transition duration-500 group-active:scale-[1.02]"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#ded0c3] to-[#8d7361]">
+                          <Coffee className="h-9 w-9 text-white/60" />
+                        </div>
+                      )}
+
+                      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(31,24,20,.10)_0%,rgba(31,24,20,.35)_45%,rgba(31,24,20,.75)_100%)] rtl:bg-[linear-gradient(270deg,rgba(31,24,20,.10)_0%,rgba(31,24,20,.35)_45%,rgba(31,24,20,.75)_100%)]" />
+
+                      <div className="relative z-[1] flex h-full items-center justify-between gap-3 px-4" dir="ltr">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/15 text-white/90 backdrop-blur-sm">
+                          {isArabic ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </span>
+
+                        <div className="ms-auto min-w-0 text-end text-white" dir={isArabic ? "rtl" : "ltr"}>
+                          <h2 className="truncate text-[17px] font-extrabold drop-shadow-sm">
+                            {categoryName}
+                          </h2>
+                          {isArabic && category.nameEn ? (
+                            <p className="mt-0.5 truncate text-[9px] font-medium tracking-[0.12em] text-white/70">
+                              {category.nameEn}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <MobileEmpty
+                title={searchTerm ? (isArabic ? "لا توجد نتائج" : "No results") : text.noCategories}
+                description={searchTerm ? (isArabic ? "جرّب كلمة بحث أخرى." : "Try another search term.") : text.noCategoriesDescription}
+              />
+            )}
+          </section>
+        ) : (
+          <section aria-label={currentTitle}>
+            <div className="horizontal-scroll -mx-3 flex gap-2 overflow-x-auto px-3 pb-3">
+              <MobileCategoryChip
+                label={text.all}
+                selected={activeCategoryId === 0}
+                primaryColor={brand.primaryColor}
+                onClick={onShowAllProducts}
+              />
+              {allCategories.map((category) => (
+                <MobileCategoryChip
+                  key={category.id}
+                  label={localize(language, category.nameAr, category.nameEn)}
+                  selected={activeCategoryId === category.id}
+                  primaryColor={brand.primaryColor}
+                  onClick={() => onSelectCategory(category.id)}
+                />
+              ))}
+            </div>
+
+            {productsLoading ? (
+              <MobileSkeleton count={6} variant="product" />
+            ) : products.length ? (
+              <div className="grid grid-cols-2 gap-x-2.5 gap-y-4 pt-1">
+                {products.map((product) => (
+                  <MobileProductCard
+                    key={product.id}
+                    product={product}
+                    language={language}
+                    currency={brand.currency}
+                    primaryColor={brand.primaryColor}
+                    onOpen={() => onOpenProduct(product)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <MobileEmpty
+                title={searchTerm ? (isArabic ? "لا توجد نتائج" : "No results") : text.noProducts}
+                description={searchTerm ? (isArabic ? "جرّب كلمة بحث أخرى." : "Try another search term.") : text.noProductsDescription}
+              />
+            )}
+          </section>
+        )}
+      </div>
+
+      <nav className="mobile-bottom-nav" aria-label={isArabic ? "التنقل الرئيسي" : "Main navigation"}>
+        <button type="button" className="mobile-nav-item" onClick={onBack}>
+          <Home className="h-[18px] w-[18px]" />
+          <span>{isArabic ? "الرئيسية" : "Home"}</span>
+        </button>
+        <button type="button" className="mobile-nav-item is-active" onClick={onShowAllProducts} style={{ color: brand.primaryColor }}>
+          <UtensilsCrossed className="h-[19px] w-[19px]" />
+          <span>{isArabic ? "المنيو" : "Menu"}</span>
+        </button>
+        <button type="button" className="mobile-nav-item" disabled aria-disabled="true">
+          <ShoppingBag className="h-[18px] w-[18px]" />
+          <span>{isArabic ? "الطلبات" : "Orders"}</span>
+        </button>
+        <button type="button" className="mobile-nav-item" onClick={onToggleLanguage}>
+          <MoreHorizontal className="h-[19px] w-[19px]" />
+          <span>{isArabic ? "المزيد" : "More"}</span>
+        </button>
+      </nav>
+    </div>
+  );
+}
+
+function MobileProductCard({
+  product,
+  language,
+  currency,
+  primaryColor,
+  onOpen,
+}: {
+  product: PublicProduct;
+  language: Language;
+  currency: string;
+  primaryColor: string;
+  onOpen: () => void;
+}) {
+  const name = localize(language, product.nameAr, product.nameEn);
+  const isArabic = language === "ar";
+
+  return (
+    <article className={`min-w-0 ${product.isAvailable ? "" : "opacity-60"}`}>
+      <button type="button" onClick={onOpen} className="block w-full text-start" aria-label={`${copy[language].viewDetails}: ${name}`}>
+        <div className="relative aspect-[1.04/1] overflow-hidden rounded-[13px] bg-[#e9e0d8] shadow-[0_2px_8px_rgba(52,39,31,.08)]">
+          {product.imageUrl ? (
+            <img src={product.imageUrl} alt={name} className="h-full w-full object-cover" loading="lazy" />
+          ) : (
+            <div className="flex h-full items-center justify-center bg-gradient-to-br from-[#f0e7df] to-[#d8c5b6]">
+              <ImageIcon className="h-8 w-8 text-[#9c897a]/55" />
+            </div>
+          )}
+          {product.isFeatured ? (
+            <span className="absolute start-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-sm" style={{ color: primaryColor }}>
+              <Star className="h-3 w-3 fill-current" />
+            </span>
+          ) : null}
+        </div>
+
+        <div className="pt-2">
+          <h3 className="line-clamp-1 text-[13px] font-bold leading-5 text-[#3a302a]">{name}</h3>
+          <div className="mt-0.5 flex items-center justify-between gap-1.5">
+            <span className="min-w-0 truncate text-[11px] font-extrabold" style={{ color: primaryColor }}>
+              {formatPrice(product.price)} <span className="text-[9px] font-bold opacity-80">{currency}</span>
+            </span>
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white shadow-sm" style={{ backgroundColor: primaryColor }} aria-hidden="true">
+              <Plus className="h-3.5 w-3.5" />
+            </span>
+          </div>
+          {!product.isAvailable ? (
+            <p className="mt-1 text-[9px] font-bold text-[#9a4c42]">{isArabic ? "غير متوفر" : "Unavailable"}</p>
+          ) : null}
+        </div>
+      </button>
+    </article>
+  );
+}
+
+function MobileCategoryChip({
+  label,
+  selected,
+  primaryColor,
+  onClick,
+}: {
+  label: string;
+  selected: boolean;
+  primaryColor: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="shrink-0 whitespace-nowrap rounded-[9px] border px-3 py-2 text-[11px] font-bold transition"
+      style={{
+        backgroundColor: selected ? primaryColor : "#f6f1ed",
+        borderColor: selected ? primaryColor : "#eee5df",
+        color: selected ? "#fff" : "#75665d",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function MobileSkeleton({ count, variant }: { count: number; variant: "category" | "product" }) {
+  if (variant === "category") {
+    return (
+      <div className="space-y-2.5">
+        {Array.from({ length: count }).map((_, index) => (
+          <div key={index} className="h-[92px] animate-pulse rounded-[15px] bg-black/[.06]" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-x-2.5 gap-y-4 pt-1">
+      {Array.from({ length: count }).map((_, index) => (
+        <div key={index} className="animate-pulse">
+          <div className="aspect-[1.04/1] rounded-[13px] bg-black/[.06]" />
+          <div className="mt-2 h-3 w-4/5 rounded bg-black/[.06]" />
+          <div className="mt-2 h-3 w-1/2 rounded bg-black/[.06]" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MobileEmpty({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-[18px] border border-dashed border-black/10 bg-white/60 px-5 py-10 text-center">
+      <MenuIcon className="mx-auto h-7 w-7 text-[#9a887c]" />
+      <h2 className="mt-3 text-sm font-extrabold text-[#4b3b32]">{title}</h2>
+      <p className="mt-1.5 text-[11px] leading-5 text-[#998a80]">{description}</p>
+    </div>
   );
 }
 
