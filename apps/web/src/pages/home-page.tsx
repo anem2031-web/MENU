@@ -153,7 +153,9 @@ const copy = {
 export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
   const settings = trpc.cafe.publicSettings.useQuery(undefined, {
     retry: 1,
-    refetchOnWindowFocus: false,
+    // Show branding changes when returning to an already-open menu tab.
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 
   const menuGroups = trpc.cafe.publicMenuGroups.useQuery(undefined, {

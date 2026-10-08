@@ -462,17 +462,23 @@ export function AdminPage() {
   }
 
   function setBrandLogo(key: string, url: string) {
-    setForm((current) => {
-      // The welcome logo follows the brand only if it was using the same
-      // image. A separately chosen welcome logo stays independent.
-      const isSharedLogo = current.welcomeLogoUrl === current.logoUrl;
-      return {
-        ...current,
-        logoKey: key,
-        logoUrl: url,
-        ...(isSharedLogo ? { welcomeLogoKey: key, welcomeLogoUrl: url } : {}),
-      };
-    });
+    // Changing the cafe identity logo applies the new logo to the welcome
+    // page too. The owner can still select a different welcome logo later.
+    setForm((current) => ({
+      ...current,
+      logoKey: key,
+      logoUrl: url,
+      welcomeLogoKey: key,
+      welcomeLogoUrl: url,
+    }));
+  }
+
+  function useBrandLogoForWelcome() {
+    setForm((current) => ({
+      ...current,
+      welcomeLogoKey: current.logoKey,
+      welcomeLogoUrl: current.logoUrl,
+    }));
   }
 
   function onSettingsLogoUploadChange(uploading: boolean) {
@@ -672,7 +678,7 @@ export function AdminPage() {
         </div>
 
         {section === "settings" ? (
-          <SettingsSection form={form} setField={setField} setBrandLogo={setBrandLogo} onLogoUploadChange={onSettingsLogoUploadChange} onSubmit={handleSettingsSubmit} isPending={updateSettings.isPending} isLoading={settings.isLoading} isUploadingLogo={settingsUploadCount > 0} />
+          <SettingsSection form={form} setField={setField} setBrandLogo={setBrandLogo} useBrandLogoForWelcome={useBrandLogoForWelcome} onLogoUploadChange={onSettingsLogoUploadChange} onSubmit={handleSettingsSubmit} isPending={updateSettings.isPending} isLoading={settings.isLoading} isUploadingLogo={settingsUploadCount > 0} />
         ) : section === "welcome" ? (
           <WelcomeSettingsSection form={form} setField={setField} onLogoUploadChange={onSettingsLogoUploadChange} onSubmit={handleSettingsSubmit} isPending={updateSettings.isPending} isLoading={settings.isLoading} isUploadingLogo={settingsUploadCount > 0} />
         ) : section === "groups" ? (
@@ -751,6 +757,7 @@ function SettingsSection({
   form,
   setField,
   setBrandLogo,
+  useBrandLogoForWelcome,
   onLogoUploadChange,
   onSubmit,
   isPending,
@@ -760,6 +767,7 @@ function SettingsSection({
   form: SettingsForm;
   setField: <K extends keyof SettingsForm>(key: K, value: SettingsForm[K]) => void;
   setBrandLogo: (key: string, url: string) => void;
+  useBrandLogoForWelcome: () => void;
   onLogoUploadChange: (uploading: boolean) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   isPending: boolean;
@@ -793,7 +801,7 @@ function SettingsSection({
           </Field>
           <ImageUploadField
             label="شعار الكوفي"
-            hint="هذا شعار الهوية في المنيو. يمكن تعيين شعار مستقل لصفحة الترحيب من تبويب «صفحة الترحيب». JPG / PNG / WebP / AVIF حتى 8MB."
+            hint="عند تغيير شعار الهوية يُستخدم أيضًا في صفحة الترحيب. ويمكن لاحقًا تعيين شعار مستقل من تبويب «صفحة الترحيب». JPG / PNG / WebP / AVIF حتى 8MB."
             kind="logo"
             imageUrl={form.logoUrl}
             onUploadingChange={onLogoUploadChange}
@@ -801,6 +809,21 @@ function SettingsSection({
             onUrlChange={(url) => setBrandLogo("", url)}
             onClear={() => setBrandLogo("", "")}
           />
+          {form.logoUrl && form.welcomeLogoUrl !== form.logoUrl ? (
+            <div className="md:col-span-2 rounded-2xl border border-amber-700/15 bg-amber-50/70 p-3">
+              <p className="mb-3 text-xs leading-6 text-[#80644d]">
+                صفحة الترحيب تستخدم شعارًا مختلفًا. إذا أردت إظهار شعار الهوية الحالي فيها، اضغط الزر ثم احفظ الإعدادات.
+              </p>
+              <button
+                type="button"
+                className="brand-secondary-button w-full justify-center"
+                disabled={isUploadingLogo || isPending}
+                onClick={useBrandLogoForWelcome}
+              >
+                استخدام الشعار الجديد في صفحة الترحيب
+              </button>
+            </div>
+          ) : null}
           <Field label="الرابط المختصر">
             <div className="relative">
               <Globe2 className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#a48670]" />
