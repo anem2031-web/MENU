@@ -16,10 +16,7 @@ import {
   Languages,
   Layers3,
   Menu as MenuIcon,
-  MoreHorizontal,
-  Plus,
   Search,
-  ShoppingBag,
   Sparkles,
   Star,
   UtensilsCrossed,
@@ -496,9 +493,6 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
           setMobileSearchTerm("");
         }}
         onOpenProduct={setSelectedProduct}
-        onToggleLanguage={() =>
-          setLanguage((current) => current === "ar" ? "en" : "ar")
-        }
       />
 
       <div className="vip-container relative hidden sm:block">
@@ -910,7 +904,6 @@ function MobileMenuExperience({
   onShowAllProducts,
   onSelectCategory,
   onOpenProduct,
-  onToggleLanguage,
 }: {
   brand: typeof defaultBrand;
   language: Language;
@@ -932,7 +925,6 @@ function MobileMenuExperience({
   onShowAllProducts: () => void;
   onSelectCategory: (categoryId: number) => void;
   onOpenProduct: (product: PublicProduct) => void;
-  onToggleLanguage: () => void;
 }) {
   const isArabic = language === "ar";
   const text = copy[language];
@@ -1100,26 +1092,22 @@ function MobileMenuExperience({
         )}
       </div>
 
-      {screen === "products" ? (
-        <nav className="mobile-bottom-nav" aria-label={isArabic ? "التنقل الرئيسي" : "Main navigation"}>
-          <button type="button" className="mobile-nav-item" onClick={onBack}>
-            <Home className="h-[18px] w-[18px]" />
-            <span>{isArabic ? "الرئيسية" : "Home"}</span>
-          </button>
-          <button type="button" className="mobile-nav-item is-active" onClick={onShowAllProducts} style={{ color: brand.primaryColor }}>
-            <UtensilsCrossed className="h-[19px] w-[19px]" />
-            <span>{isArabic ? "المنيو" : "Menu"}</span>
-          </button>
-          <button type="button" className="mobile-nav-item" disabled aria-disabled="true">
-            <ShoppingBag className="h-[18px] w-[18px]" />
-            <span>{isArabic ? "الطلبات" : "Orders"}</span>
-          </button>
-          <button type="button" className="mobile-nav-item" onClick={onToggleLanguage}>
-            <MoreHorizontal className="h-[19px] w-[19px]" />
-            <span>{isArabic ? "المزيد" : "More"}</span>
-          </button>
-        </nav>
-      ) : null}
+      <nav className="mobile-bottom-nav" aria-label={isArabic ? "التنقل الرئيسي" : "Main navigation"}>
+        <button type="button" className="mobile-nav-item" onClick={onBackToWelcome}>
+          <Home className="h-[20px] w-[20px]" />
+          <span>{isArabic ? "الرئيسية" : "Home"}</span>
+        </button>
+        <button
+          type="button"
+          className="mobile-nav-item is-active"
+          onClick={onBack}
+          style={{ color: brand.primaryColor }}
+          aria-current={screen === "categories" ? "page" : undefined}
+        >
+          <UtensilsCrossed className="h-[20px] w-[20px]" />
+          <span>{isArabic ? "المنيو" : "Menu"}</span>
+        </button>
+      </nav>
     </div>
   );
 }
@@ -1160,12 +1148,9 @@ function MobileProductCard({
 
         <div className="pt-2">
           <h3 className="line-clamp-1 text-[13px] font-bold leading-5 text-[#3a302a]">{name}</h3>
-          <div className="mt-0.5 flex items-center justify-between gap-1.5">
+          <div className="mt-0.5 flex items-center gap-1.5">
             <span className="min-w-0 truncate text-[11px] font-extrabold" style={{ color: primaryColor }}>
               {formatPrice(product.price)} <span className="text-[9px] font-bold opacity-80">{currency}</span>
-            </span>
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white shadow-sm" style={{ backgroundColor: primaryColor }} aria-hidden="true">
-              <Plus className="h-3.5 w-3.5" />
             </span>
           </div>
           {!product.isAvailable ? (
