@@ -480,6 +480,21 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
         onSearchChange={setMobileSearchTerm}
         onOpenCategory={openMobileCategory}
         onBack={showMobileCategories}
+        onBackToWelcome={() => {
+          if (brand.welcomeEnabled) {
+            setWelcomeEntered(false);
+            setMobileScreen("categories");
+            setActiveCategoryId(0);
+            setMobileSearchOpen(false);
+            setMobileSearchTerm("");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            return;
+          }
+
+          if (window.history.length > 1) {
+            window.history.back();
+          }
+        }}
         onShowAllProducts={showAllMobileProducts}
         onSelectCategory={(categoryId) => {
           setActiveCategoryId(categoryId);
@@ -994,6 +1009,7 @@ function MobileMenuExperience({
   onSearchChange,
   onOpenCategory,
   onBack,
+  onBackToWelcome,
   onShowAllProducts,
   onSelectCategory,
   onOpenProduct,
@@ -1015,6 +1031,7 @@ function MobileMenuExperience({
   onSearchChange: (value: string) => void;
   onOpenCategory: (categoryId: number) => void;
   onBack: () => void;
+  onBackToWelcome: () => void;
   onShowAllProducts: () => void;
   onSelectCategory: (categoryId: number) => void;
   onOpenProduct: (product: PublicProduct) => void;
@@ -1027,44 +1044,46 @@ function MobileMenuExperience({
     : text.menuTitle;
 
   return (
-    <div className="mobile-menu-shell sm:hidden">
-      <header className="mobile-menu-header">
-        <div className="mobile-menu-topbar">
+    <div className={`mobile-menu-shell sm:hidden ${screen === "categories" ? "is-categories" : ""}`}>
+      <header className={`mobile-menu-header ${screen === "categories" ? "is-category-header" : ""}`}>
+        <div className="mobile-menu-topbar" dir="ltr">
           <button
             type="button"
             className="mobile-icon-button"
-            onClick={screen === "products" ? onBack : onToggleLanguage}
-            aria-label={screen === "products" ? (isArabic ? "العودة للأقسام" : "Back to categories") : (isArabic ? "تغيير اللغة" : "Change language")}
+            onClick={screen === "products" ? onBack : onBackToWelcome}
+            aria-label={screen === "products" ? (isArabic ? "العودة للأقسام" : "Back to categories") : (isArabic ? "العودة لصفحة الترحيب" : "Back to welcome page")}
           >
-            {screen === "products" ? (
-              isArabic ? <ChevronRight className="h-[19px] w-[19px]" /> : <ChevronLeft className="h-[19px] w-[19px]" />
-            ) : (
-              <Languages className="h-[18px] w-[18px]" />
-            )}
+            <ChevronLeft className="h-[19px] w-[19px]" />
           </button>
 
           <div className="min-w-0 flex-1 text-center" dir={isArabic ? "rtl" : "ltr"}>
-            <h1 className="truncate text-[18px] font-extrabold leading-7 text-[#30251f]">
-              {screen === "categories" ? text.menuTitle : currentTitle}
+            <h1 className={`truncate font-extrabold text-[#30251f] ${screen === "categories" ? "text-[17px] leading-6" : "text-[18px] leading-7"}`}>
+              {screen === "categories"
+                ? (isArabic ? "اختر الفئة" : "Choose a category")
+                : currentTitle}
             </h1>
             {screen === "categories" ? (
-              <p className="mt-0.5 truncate text-[11px] text-[#9b8c82]">
-                {isArabic ? "اختر ما يناسب ذوقك" : "Choose what suits your taste"}
+              <p className="mobile-category-header-subtitle">
+                {isArabic ? "CHOOSE A CATEGORY" : "اختر الفئة"}
               </p>
             ) : null}
           </div>
 
-          <button
-            type="button"
-            className="mobile-icon-button"
-            onClick={onSearchToggle}
-            aria-label={isArabic ? "بحث" : "Search"}
-          >
-            {searchOpen ? <X className="h-[18px] w-[18px]" /> : <Search className="h-[19px] w-[19px]" />}
-          </button>
+          {screen === "products" ? (
+            <button
+              type="button"
+              className="mobile-icon-button"
+              onClick={onSearchToggle}
+              aria-label={isArabic ? "بحث" : "Search"}
+            >
+              {searchOpen ? <X className="h-[18px] w-[18px]" /> : <Search className="h-[19px] w-[19px]" />}
+            </button>
+          ) : (
+            <span className="mobile-header-spacer" aria-hidden="true" />
+          )}
         </div>
 
-        {searchOpen ? (
+        {screen === "products" && searchOpen ? (
           <div className="mobile-search-wrap">
             <Search className="h-4 w-4 shrink-0 text-[#9c8d83]" />
             <input
@@ -1085,9 +1104,10 @@ function MobileMenuExperience({
             {categoriesLoading ? (
               <MobileSkeleton count={4} variant="category" />
             ) : categories.length ? (
-              <div className="space-y-2.5">
+              <div className="mobile-category-list">
                 {categories.map((category) => {
                   const categoryName = localize(language, category.nameAr, category.nameEn);
+                  const secondaryName = isArabic ? category.nameEn : category.nameAr;
 
                   return (
                     <button
@@ -1096,37 +1116,37 @@ function MobileMenuExperience({
                       className="mobile-category-card group"
                       onClick={() => onOpenCategory(category.id)}
                     >
-                      {category.imageUrl ? (
-                        <img
-                          src={category.imageUrl}
-                          alt={categoryName}
-                          className="absolute inset-0 h-full w-full object-cover transition duration-500 group-active:scale-[1.02]"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#ded0c3] to-[#8d7361]">
-                          <Coffee className="h-9 w-9 text-white/60" />
-                        </div>
-                      )}
-
-                      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(31,24,20,.10)_0%,rgba(31,24,20,.35)_45%,rgba(31,24,20,.75)_100%)] rtl:bg-[linear-gradient(270deg,rgba(31,24,20,.10)_0%,rgba(31,24,20,.35)_45%,rgba(31,24,20,.75)_100%)]" />
-
-                      <div className="relative z-[1] flex h-full items-center justify-between gap-3 px-4" dir="ltr">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/15 text-white/90 backdrop-blur-sm">
-                          {isArabic ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        </span>
-
-                        <div className="ms-auto min-w-0 text-end text-white" dir={isArabic ? "rtl" : "ltr"}>
-                          <h2 className="truncate text-[17px] font-extrabold drop-shadow-sm">
-                            {categoryName}
-                          </h2>
-                          {isArabic && category.nameEn ? (
-                            <p className="mt-0.5 truncate text-[9px] font-medium tracking-[0.12em] text-white/70">
-                              {category.nameEn}
-                            </p>
-                          ) : null}
-                        </div>
+                      <div className="mobile-category-media" aria-hidden="true">
+                        {category.imageUrl ? (
+                          <img
+                            src={category.imageUrl}
+                            alt=""
+                            className="h-full w-full object-cover transition duration-500 group-active:scale-[1.02]"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#f2e9e1] to-[#ddcec1]">
+                            <Coffee className="h-10 w-10 text-[#9a8271]/55" />
+                          </div>
+                        )}
                       </div>
+
+                      <div className="mobile-category-media-fade" aria-hidden="true" />
+
+                      <div className="mobile-category-card-copy" dir={isArabic ? "rtl" : "ltr"}>
+                        <h2 className="truncate text-[16px] font-extrabold leading-6 text-[#3c312b]">
+                          {categoryName}
+                        </h2>
+                        {secondaryName ? (
+                          <p className="mt-1 truncate text-[9px] font-semibold tracking-[0.18em] text-[#9d8d82]">
+                            {secondaryName}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <span className="mobile-category-chevron" aria-hidden="true">
+                        <ChevronRight className="h-[18px] w-[18px]" />
+                      </span>
                     </button>
                   );
                 })}
@@ -1183,24 +1203,26 @@ function MobileMenuExperience({
         )}
       </div>
 
-      <nav className="mobile-bottom-nav" aria-label={isArabic ? "التنقل الرئيسي" : "Main navigation"}>
-        <button type="button" className="mobile-nav-item" onClick={onBack}>
-          <Home className="h-[18px] w-[18px]" />
-          <span>{isArabic ? "الرئيسية" : "Home"}</span>
-        </button>
-        <button type="button" className="mobile-nav-item is-active" onClick={onShowAllProducts} style={{ color: brand.primaryColor }}>
-          <UtensilsCrossed className="h-[19px] w-[19px]" />
-          <span>{isArabic ? "المنيو" : "Menu"}</span>
-        </button>
-        <button type="button" className="mobile-nav-item" disabled aria-disabled="true">
-          <ShoppingBag className="h-[18px] w-[18px]" />
-          <span>{isArabic ? "الطلبات" : "Orders"}</span>
-        </button>
-        <button type="button" className="mobile-nav-item" onClick={onToggleLanguage}>
-          <MoreHorizontal className="h-[19px] w-[19px]" />
-          <span>{isArabic ? "المزيد" : "More"}</span>
-        </button>
-      </nav>
+      {screen === "products" ? (
+        <nav className="mobile-bottom-nav" aria-label={isArabic ? "التنقل الرئيسي" : "Main navigation"}>
+          <button type="button" className="mobile-nav-item" onClick={onBack}>
+            <Home className="h-[18px] w-[18px]" />
+            <span>{isArabic ? "الرئيسية" : "Home"}</span>
+          </button>
+          <button type="button" className="mobile-nav-item is-active" onClick={onShowAllProducts} style={{ color: brand.primaryColor }}>
+            <UtensilsCrossed className="h-[19px] w-[19px]" />
+            <span>{isArabic ? "المنيو" : "Menu"}</span>
+          </button>
+          <button type="button" className="mobile-nav-item" disabled aria-disabled="true">
+            <ShoppingBag className="h-[18px] w-[18px]" />
+            <span>{isArabic ? "الطلبات" : "Orders"}</span>
+          </button>
+          <button type="button" className="mobile-nav-item" onClick={onToggleLanguage}>
+            <MoreHorizontal className="h-[19px] w-[19px]" />
+            <span>{isArabic ? "المزيد" : "More"}</span>
+          </button>
+        </nav>
+      ) : null}
     </div>
   );
 }
@@ -1290,7 +1312,7 @@ function MobileSkeleton({ count, variant }: { count: number; variant: "category"
     return (
       <div className="space-y-2.5">
         {Array.from({ length: count }).map((_, index) => (
-          <div key={index} className="h-[92px] animate-pulse rounded-[15px] bg-black/[.06]" />
+          <div key={index} className="h-[148px] animate-pulse rounded-[17px] bg-black/[.06]" />
         ))}
       </div>
     );
