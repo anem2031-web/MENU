@@ -120,6 +120,27 @@ export const cafeSettings = mysqlTable(
 );
 
 /**
+ * الفئات الرئيسية للمنيو، تحتوي الفئة الواحدة على عدة أقسام.
+ */
+export const menuGroups = mysqlTable(
+  "menu_groups",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    nameAr: varchar("name_ar", { length: 150 }).notNull(),
+    nameEn: varchar("name_en", { length: 150 }),
+    imageKey: varchar("image_key", { length: 500 }),
+    imageUrl: varchar("image_url", { length: 1000 }),
+    sortOrder: int("sort_order").notNull().default(0),
+    isVisible: int("is_visible").notNull().default(1),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+  },
+  (table) => [
+    index("menu_groups_sort_order_idx").on(table.sortOrder),
+  ],
+);
+
+/**
  * أقسام المنيو.
  */
 export const categories = mysqlTable(
@@ -127,6 +148,7 @@ export const categories = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
 
+    menuGroupId: int("menu_group_id").references(() => menuGroups.id),
     nameAr: varchar("name_ar", { length: 150 }).notNull(),
     nameEn: varchar("name_en", { length: 150 }),
 
@@ -145,6 +167,7 @@ export const categories = mysqlTable(
   (table) => [
     index("categories_sort_order_idx").on(table.sortOrder),
     index("categories_visible_idx").on(table.isVisible),
+    index("categories_menu_group_idx").on(table.menuGroupId),
   ],
 );
 

@@ -1,5 +1,5 @@
 import { APP_NAME } from "@almalqa/shared";
-import { cafeSettings, categories, db, products, users } from "@almalqa/db";
+import { cafeSettings, categories, db, menuGroups, products, users } from "@almalqa/db";
 import { and, asc, eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { TRPCError } from "@trpc/server";
@@ -80,9 +80,22 @@ function serializeSettings(settings: Awaited<ReturnType<typeof getCafeSettings>>
   };
 }
 
+function serializeMenuGroup(group: typeof menuGroups.$inferSelect) {
+  return {
+    id: group.id,
+    nameAr: group.nameAr,
+    nameEn: group.nameEn ?? "",
+    imageKey: group.imageKey ?? "",
+    imageUrl: group.imageUrl ?? "",
+    sortOrder: group.sortOrder,
+    isVisible: group.isVisible === 1,
+  };
+}
+
 function serializeCategory(category: typeof categories.$inferSelect) {
   return {
     id: category.id,
+    menuGroupId: category.menuGroupId ?? 0,
     nameAr: category.nameAr,
     nameEn: category.nameEn ?? "",
     imageKey: category.imageKey ?? "",
@@ -169,14 +182,22 @@ const cafeRouter = router({
     return serializeSettings(settings);
   }),
 
+  publicMenuGroups: publicProcedure.query(async () => {
+    const rows = await db.select().from(menuGroups)
+      .where(eq(menuGroups.isVisible, 1))
+      .orderBy(asc(menuGroups.sortOrder), asc(menuGroups.id));
+    return rows.map(serializeMenuGroup);
+  }),
+
   publicCategories: publicProcedure.query(async () => {
     const rows = await db
       .select()
       .from(categories)
-      .where(eq(categories.isVisible, 1))
+      .innerJoin(menuGroups, eq(categories.menuGroupId, menuGroups.id))
+      .where(and(eq(categories.isVisible, 1), eq(menuGroups.isVisible, 1)))
       .orderBy(asc(categories.sortOrder), asc(categories.id));
 
-    return rows.map(serializeCategory);
+    return rows.map(({ categories: category }) => serializeCategory(category));
   }),
 
   publicProducts: publicProcedure.query(async () => {
@@ -189,7 +210,8 @@ const cafeRouter = router({
       })
       .from(products)
       .innerJoin(categories, eq(products.categoryId, categories.id))
-      .where(and(eq(products.isVisible, 1), eq(categories.isVisible, 1)))
+      .innerJoin(menuGroups, eq(categories.menuGroupId, menuGroups.id))
+      .where(and(eq(products.isVisible, 1), eq(categories.isVisible, 1), eq(menuGroups.isVisible, 1)))
       .orderBy(asc(categories.sortOrder), asc(products.sortOrder), asc(products.id));
 
     return rows.map(({ product, categoryNameAr, categoryNameEn }) => ({
@@ -231,7 +253,17 @@ const settingsInput = z.object({
   isPublished: z.boolean(),
 });
 
+const menuGroupInput = z.object({
+  nameAr: z.string().trim().min(2, "اسم الفئة بالعربي مطلوب").max(150),
+  nameEn: z.string().trim().max(150),
+  imageKey: z.string().trim().max(500),
+  imageUrl: z.string().trim().max(1000),
+  sortOrder: z.number().int().min(-9999).max(9999),
+  isVisible: z.boolean(),
+});
+
 const categoryInput = z.object({
+  menuGroupId: z.number().int().positive("اختر الفئة التي يتبعها القسم"),
   nameAr: z.string().trim().min(2, "اسم القسم بالعربي مطلوب").max(150),
   nameEn: z.string().trim().max(150),
   imageKey: z.string().trim().max(500),
@@ -254,6 +286,14 @@ const productInput = z.object({
   isAvailable: z.boolean(),
   isFeatured: z.boolean(),
 });
+
+async function ensureMenuGroupExists(menuGroupId: number) {
+  const rows = await db.select({ id: menuGroups.id }).from(menuGroups)
+    .where(eq(menuGroups.id, menuGroupId)).limit(1);
+  if (!rows[0]) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "الفئة المحددة غير موجودة" });
+  }
+}
 
 async function ensureCategoryExists(categoryId: number) {
   const rows = await db
@@ -316,6 +356,56 @@ const adminRouter = router({
       return serializeSettings(updated);
     }),
 
+  menuGroups: protectedProcedure.query(async () => {
+    const rows = await db.select().from(menuGroups)
+      .orderBy(asc(menuGroups.sortOrder), asc(menuGroups.id));
+    return rows.map(serializeMenuGroup);
+  }),
+
+  createMenuGroup: protectedProcedure.input(menuGroupInput).mutation(async ({ input }) => {
+    const result = await db.insert(menuGroups).values({
+      nameAr: input.nameAr, nameEn: input.nameEn || null,
+      imageKey: input.imageKey || null, imageUrl: input.imageUrl || null,
+      sortOrder: input.sortOrder, isVisible: input.isVisible ? 1 : 0,
+    }).$returningId();
+    const id = result[0]?.id;
+    if (!id) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "تعذر إضافة الفئة" });
+    const rows = await db.select().from(menuGroups).where(eq(menuGroups.id, id)).limit(1);
+    return serializeMenuGroup(rows[0]!);
+  }),
+
+  updateMenuGroup: protectedProcedure.input(menuGroupInput.extend({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const existing = await db.select({ id: menuGroups.id }).from(menuGroups).where(eq(menuGroups.id, input.id)).limit(1);
+      if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND", message: "الفئة غير موجودة" });
+      await db.update(menuGroups).set({
+        nameAr: input.nameAr, nameEn: input.nameEn || null,
+        imageKey: input.imageKey || null, imageUrl: input.imageUrl || null,
+        sortOrder: input.sortOrder, isVisible: input.isVisible ? 1 : 0,
+      }).where(eq(menuGroups.id, input.id));
+      const rows = await db.select().from(menuGroups).where(eq(menuGroups.id, input.id)).limit(1);
+      return serializeMenuGroup(rows[0]!);
+    }),
+
+  setMenuGroupVisibility: protectedProcedure
+    .input(z.object({ id: z.number().int().positive(), isVisible: z.boolean() }))
+    .mutation(async ({ input }) => {
+      await db.update(menuGroups).set({ isVisible: input.isVisible ? 1 : 0 })
+        .where(eq(menuGroups.id, input.id));
+      return { success: true as const };
+    }),
+
+  deleteMenuGroup: protectedProcedure.input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const linked = await db.select({ id: categories.id }).from(categories)
+        .where(eq(categories.menuGroupId, input.id)).limit(1);
+      if (linked.length) {
+        throw new TRPCError({ code: "CONFLICT", message: "لا يمكن حذف فئة تحتوي أقسامًا. انقل الأقسام أولًا." });
+      }
+      await db.delete(menuGroups).where(eq(menuGroups.id, input.id));
+      return { success: true as const };
+    }),
+
   categories: protectedProcedure.query(async () => {
     const rows = await db
       .select()
@@ -328,9 +418,11 @@ const adminRouter = router({
   createCategory: protectedProcedure
     .input(categoryInput)
     .mutation(async ({ input }) => {
+      await ensureMenuGroupExists(input.menuGroupId);
       const result = await db
         .insert(categories)
         .values({
+          menuGroupId: input.menuGroupId,
           nameAr: input.nameAr,
           nameEn: input.nameEn || null,
           imageKey: input.imageKey || null,
@@ -356,6 +448,7 @@ const adminRouter = router({
   updateCategory: protectedProcedure
     .input(categoryInput.extend({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
+      await ensureMenuGroupExists(input.menuGroupId);
       const existing = await db.select({ id: categories.id }).from(categories).where(eq(categories.id, input.id)).limit(1);
       if (!existing[0]) {
         throw new TRPCError({ code: "NOT_FOUND", message: "القسم غير موجود" });
@@ -364,6 +457,7 @@ const adminRouter = router({
       await db
         .update(categories)
         .set({
+          menuGroupId: input.menuGroupId,
           nameAr: input.nameAr,
           nameEn: input.nameEn || null,
           imageKey: input.imageKey || null,

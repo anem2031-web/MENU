@@ -59,8 +59,19 @@ type SettingsForm = {
   isPublished: boolean;
 };
 
+type MenuGroupForm = {
+  id: number | null;
+  nameAr: string;
+  nameEn: string;
+  imageKey: string;
+  imageUrl: string;
+  sortOrder: number;
+  isVisible: boolean;
+};
+
 type CategoryForm = {
   id: number | null;
+  menuGroupId: number;
   nameAr: string;
   nameEn: string;
   imageKey: string;
@@ -85,10 +96,21 @@ type ProductForm = {
   isFeatured: boolean;
 };
 
-type AdminSection = "settings" | "welcome" | "categories" | "products" | "qr";
+type AdminSection = "settings" | "welcome" | "groups" | "categories" | "products" | "qr";
+
+type AdminMenuGroup = {
+  id: number;
+  nameAr: string;
+  nameEn: string;
+  imageKey: string;
+  imageUrl: string;
+  sortOrder: number;
+  isVisible: boolean;
+};
 
 type AdminCategory = {
   id: number;
+  menuGroupId: number;
   nameAr: string;
   nameEn: string;
   imageKey: string;
@@ -141,8 +163,19 @@ const emptySettings: SettingsForm = {
   isPublished: true,
 };
 
+const emptyGroup: MenuGroupForm = {
+  id: null,
+  nameAr: "",
+  nameEn: "",
+  imageKey: "",
+  imageUrl: "",
+  sortOrder: 10,
+  isVisible: true,
+};
+
 const emptyCategory: CategoryForm = {
   id: null,
+  menuGroupId: 0,
   nameAr: "",
   nameEn: "",
   imageKey: "",
@@ -175,6 +208,10 @@ export function AdminPage() {
     enabled: Boolean(me.data),
     retry: false,
   });
+  const menuGroups = trpc.admin.menuGroups.useQuery(undefined, {
+    enabled: Boolean(me.data),
+    retry: false,
+  });
   const categories = trpc.admin.categories.useQuery(undefined, {
     enabled: Boolean(me.data),
     retry: false,
@@ -186,6 +223,9 @@ export function AdminPage() {
 
   const [section, setSection] = useState<AdminSection>("settings");
   const [form, setForm] = useState<SettingsForm>(emptySettings);
+  // Keep settings unsavable while any logo image is still being uploaded.
+  const [settingsUploadCount, setSettingsUploadCount] = useState(0);
+  const [groupForm, setGroupForm] = useState<MenuGroupForm>(emptyGroup);
   const [categoryForm, setCategoryForm] = useState<CategoryForm>(emptyCategory);
   const [productForm, setProductForm] = useState<ProductForm>(emptyProduct);
   const [productCategoryFilter, setProductCategoryFilter] = useState<number>(0);
@@ -223,6 +263,11 @@ export function AdminPage() {
     });
   }, [settings.data]);
 
+  const nextGroupSortOrder = useMemo(() => {
+    if (!menuGroups.data?.length) return 10;
+    return Math.max(...menuGroups.data.map((item) => item.sortOrder)) + 10;
+  }, [menuGroups.data]);
+
   const nextCategorySortOrder = useMemo(() => {
     if (!categories.data?.length) return 10;
     return Math.max(...categories.data.map((item) => item.sortOrder)) + 10;
@@ -240,6 +285,16 @@ export function AdminPage() {
     if (!productCategoryFilter) return products.data;
     return products.data.filter((item) => item.categoryId === productCategoryFilter);
   }, [products.data, productCategoryFilter]);
+
+  const invalidateMenuGroups = async () => {
+    await Promise.all([
+      utils.admin.menuGroups.invalidate(),
+      utils.cafe.publicMenuGroups.invalidate(),
+      utils.admin.categories.invalidate(),
+      utils.cafe.publicCategories.invalidate(),
+      utils.cafe.publicProducts.invalidate(),
+    ]);
+  };
 
   const invalidateCategories = async () => {
     await Promise.all([
@@ -265,6 +320,34 @@ export function AdminPage() {
       toast.success("تم حفظ هوية الكوفي وإعداداته");
     },
     onError: (error) => toast.error(error.message || "تعذر حفظ الإعدادات"),
+  });
+
+  const createMenuGroup = trpc.admin.createMenuGroup.useMutation({
+    onSuccess: async () => {
+      await invalidateMenuGroups();
+      setGroupForm({ ...emptyGroup, sortOrder: nextGroupSortOrder + 10 });
+      toast.success("تمت إضافة الفئة");
+    },
+    onError: (error) => toast.error(error.message || "تعذر إضافة الفئة"),
+  });
+  const updateMenuGroup = trpc.admin.updateMenuGroup.useMutation({
+    onSuccess: async () => {
+      await invalidateMenuGroups();
+      setGroupForm({ ...emptyGroup, sortOrder: nextGroupSortOrder });
+      toast.success("تم تعديل الفئة");
+    },
+    onError: (error) => toast.error(error.message || "تعذر تعديل الفئة"),
+  });
+  const setMenuGroupVisibility = trpc.admin.setMenuGroupVisibility.useMutation({
+    onSuccess: invalidateMenuGroups,
+    onError: (error) => toast.error(error.message || "تعذر تغيير ظهور الفئة"),
+  });
+  const deleteMenuGroup = trpc.admin.deleteMenuGroup.useMutation({
+    onSuccess: async () => {
+      await invalidateMenuGroups();
+      toast.success("تم حذف الفئة");
+    },
+    onError: (error) => toast.error(error.message || "تعذر حذف الفئة"),
   });
 
   const createCategory = trpc.admin.createCategory.useMutation({
@@ -359,6 +442,13 @@ export function AdminPage() {
   }, [nextCategorySortOrder, categoryForm.id, categoryForm.nameAr, categoryForm.sortOrder]);
 
   useEffect(() => {
+    if (!menuGroups.data?.length) return;
+    if (categoryForm.menuGroupId === 0) {
+      setCategoryForm((current) => ({ ...current, menuGroupId: menuGroups.data![0]!.id }));
+    }
+  }, [menuGroups.data, categoryForm.menuGroupId]);
+
+  useEffect(() => {
     if (!categories.data?.length) return;
     if (productForm.categoryId === 0) {
       setProductForm((current) => ({ ...current, categoryId: categories.data[0]!.id }));
@@ -371,6 +461,24 @@ export function AdminPage() {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function setBrandLogo(key: string, url: string) {
+    setForm((current) => {
+      // The welcome logo follows the brand only if it was using the same
+      // image. A separately chosen welcome logo stays independent.
+      const isSharedLogo = current.welcomeLogoUrl === current.logoUrl;
+      return {
+        ...current,
+        logoKey: key,
+        logoUrl: url,
+        ...(isSharedLogo ? { welcomeLogoKey: key, welcomeLogoUrl: url } : {}),
+      };
+    });
+  }
+
+  function onSettingsLogoUploadChange(uploading: boolean) {
+    setSettingsUploadCount((count) => Math.max(0, count + (uploading ? 1 : -1)));
+  }
+
   function setCategoryField<K extends keyof CategoryForm>(key: K, value: CategoryForm[K]) {
     setCategoryForm((current) => ({ ...current, [key]: value }));
   }
@@ -381,12 +489,40 @@ export function AdminPage() {
 
   function handleSettingsSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (settingsUploadCount > 0) {
+      toast.error("انتظر اكتمال رفع الشعار قبل حفظ الإعدادات");
+      return;
+    }
     updateSettings.mutate(form);
   }
 
-  function handleCategorySubmit(event: FormEvent<HTMLFormElement>) {
+  function setGroupField<K extends keyof MenuGroupForm>(key: K, value: MenuGroupForm[K]) {
+    setGroupForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function handleGroupSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const payload = {
+      nameAr: groupForm.nameAr,
+      nameEn: groupForm.nameEn,
+      imageKey: groupForm.imageKey,
+      imageUrl: groupForm.imageUrl,
+      sortOrder: Number(groupForm.sortOrder),
+      isVisible: groupForm.isVisible,
+    };
+    if (groupForm.id) updateMenuGroup.mutate({ id: groupForm.id, ...payload });
+    else createMenuGroup.mutate(payload);
+  }
+
+  function handleCategorySubmit(event: FormEvent<HTMLFormElement>) {
+    if (!categoryForm.menuGroupId) {
+      event.preventDefault();
+      toast.error("اختر الفئة الرئيسية أولًا");
+      return;
+    }
+    event.preventDefault();
+    const payload = {
+      menuGroupId: categoryForm.menuGroupId,
       nameAr: categoryForm.nameAr,
       nameEn: categoryForm.nameEn,
       imageKey: categoryForm.imageKey,
@@ -431,8 +567,21 @@ export function AdminPage() {
     }
   }
 
+  function startNewGroup() {
+    setGroupForm({ ...emptyGroup, sortOrder: nextGroupSortOrder });
+  }
+
+  function editGroup(group: AdminMenuGroup) {
+    setSection("groups");
+    setGroupForm({ ...group });
+  }
+
+  function requestDeleteGroup(id: number, nameAr: string) {
+    if (window.confirm(`حذف الفئة «${nameAr}»؟ يجب نقل أقسامها أولًا.`)) deleteMenuGroup.mutate({ id });
+  }
+
   function startNewCategory() {
-    setCategoryForm({ ...emptyCategory, sortOrder: nextCategorySortOrder });
+    setCategoryForm({ ...emptyCategory, menuGroupId: menuGroups.data?.[0]?.id || 0, sortOrder: nextCategorySortOrder });
   }
 
   function startNewProduct() {
@@ -447,6 +596,7 @@ export function AdminPage() {
     setSection("categories");
     setCategoryForm({
       id: category.id,
+      menuGroupId: category.menuGroupId,
       nameAr: category.nameAr,
       nameEn: category.nameEn,
       imageKey: category.imageKey,
@@ -515,19 +665,37 @@ export function AdminPage() {
         <div className="admin-tabs horizontal-scroll -mx-1 mt-5 px-1">
           <SectionButton active={section === "settings"} onClick={() => setSection("settings")} icon={<Palette className="h-4 w-4" />} label="الهوية والإعدادات" />
           <SectionButton active={section === "welcome"} onClick={() => setSection("welcome")} icon={<Sparkles className="h-4 w-4" />} label="صفحة الترحيب" />
+          <SectionButton active={section === "groups"} onClick={() => setSection("groups")} icon={<Layers3 className="h-4 w-4" />} label="الفئات" count={menuGroups.data?.length ?? 0} />
           <SectionButton active={section === "categories"} onClick={() => setSection("categories")} icon={<Layers3 className="h-4 w-4" />} label="الأقسام" count={categories.data?.length ?? 0} />
           <SectionButton active={section === "products"} onClick={() => setSection("products")} icon={<PackageOpen className="h-4 w-4" />} label="الأصناف" count={products.data?.length ?? 0} />
           <SectionButton active={section === "qr"} onClick={() => setSection("qr")} icon={<QrCode className="h-4 w-4" />} label="QR العميل" />
         </div>
 
         {section === "settings" ? (
-          <SettingsSection form={form} setField={setField} onSubmit={handleSettingsSubmit} isPending={updateSettings.isPending} isLoading={settings.isLoading} />
+          <SettingsSection form={form} setField={setField} setBrandLogo={setBrandLogo} onLogoUploadChange={onSettingsLogoUploadChange} onSubmit={handleSettingsSubmit} isPending={updateSettings.isPending} isLoading={settings.isLoading} isUploadingLogo={settingsUploadCount > 0} />
         ) : section === "welcome" ? (
-          <WelcomeSettingsSection form={form} setField={setField} onSubmit={handleSettingsSubmit} isPending={updateSettings.isPending} isLoading={settings.isLoading} />
+          <WelcomeSettingsSection form={form} setField={setField} onLogoUploadChange={onSettingsLogoUploadChange} onSubmit={handleSettingsSubmit} isPending={updateSettings.isPending} isLoading={settings.isLoading} isUploadingLogo={settingsUploadCount > 0} />
+        ) : section === "groups" ? (
+          <MenuGroupsSection
+            form={form}
+            groupForm={groupForm}
+            groups={menuGroups.data ?? []}
+            isLoading={menuGroups.isLoading}
+            setGroupField={setGroupField}
+            onSubmit={handleGroupSubmit}
+            onNew={startNewGroup}
+            onEdit={editGroup}
+            onToggle={(id, isVisible) => setMenuGroupVisibility.mutate({ id, isVisible })}
+            onDelete={requestDeleteGroup}
+            isSaving={createMenuGroup.isPending || updateMenuGroup.isPending}
+            isToggling={setMenuGroupVisibility.isPending}
+            isDeleting={deleteMenuGroup.isPending}
+          />
         ) : section === "categories" ? (
           <CategoriesSection
             form={form}
             categoryForm={categoryForm}
+            menuGroups={menuGroups.data ?? []}
             categories={categories.data ?? []}
             isLoading={categories.isLoading}
             setCategoryField={setCategoryField}
@@ -582,15 +750,21 @@ function SectionButton({ active, onClick, icon, label, count }: { active: boolea
 function SettingsSection({
   form,
   setField,
+  setBrandLogo,
+  onLogoUploadChange,
   onSubmit,
   isPending,
   isLoading,
+  isUploadingLogo,
 }: {
   form: SettingsForm;
   setField: <K extends keyof SettingsForm>(key: K, value: SettingsForm[K]) => void;
+  setBrandLogo: (key: string, url: string) => void;
+  onLogoUploadChange: (uploading: boolean) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   isPending: boolean;
   isLoading: boolean;
+  isUploadingLogo: boolean;
 }) {
   return (
     <div className="mt-6 grid min-w-0 gap-5 lg:grid-cols-[1.35fr_0.65fr] xl:gap-6">
@@ -619,12 +793,13 @@ function SettingsSection({
           </Field>
           <ImageUploadField
             label="شعار الكوفي"
-            hint="JPG / PNG / WebP / AVIF حتى 8MB. يتم التحويل تلقائيًا إلى WebP ثم الرفع إلى IDrive e2."
+            hint="هذا شعار الهوية في المنيو. يمكن تعيين شعار مستقل لصفحة الترحيب من تبويب «صفحة الترحيب». JPG / PNG / WebP / AVIF حتى 8MB."
             kind="logo"
             imageUrl={form.logoUrl}
-            onUploaded={(image) => { setField("logoKey", image.key); setField("logoUrl", image.url); }}
-            onUrlChange={(url) => { setField("logoKey", ""); setField("logoUrl", url); }}
-            onClear={() => { setField("logoKey", ""); setField("logoUrl", ""); }}
+            onUploadingChange={onLogoUploadChange}
+            onUploaded={(image) => setBrandLogo(image.key, image.url)}
+            onUrlChange={(url) => setBrandLogo("", url)}
+            onClear={() => setBrandLogo("", "")}
           />
           <Field label="الرابط المختصر">
             <div className="relative">
@@ -655,9 +830,9 @@ function SettingsSection({
 
         <div className="mt-7 flex flex-col items-stretch gap-4 border-t border-[#5A3825]/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs leading-6 text-[#9a806c]">الحفظ يحدّث TiDB مباشرة، وتظهر التغييرات في واجهة العميل بعد نجاح العملية.</p>
-          <button type="submit" disabled={isPending || isLoading} className="brand-primary-button w-full sm:w-auto">
+          <button type="submit" disabled={isPending || isLoading || isUploadingLogo} className="brand-primary-button w-full sm:w-auto">
             <Save className="h-5 w-5" />
-            {isPending ? "جاري الحفظ..." : "حفظ الإعدادات"}
+            {isUploadingLogo ? "انتظر اكتمال رفع الشعار..." : isPending ? "جاري الحفظ..." : "حفظ الإعدادات"}
           </button>
         </div>
       </form>
@@ -681,15 +856,19 @@ function SettingsSection({
 function WelcomeSettingsSection({
   form,
   setField,
+  onLogoUploadChange,
   onSubmit,
   isPending,
   isLoading,
+  isUploadingLogo,
 }: {
   form: SettingsForm;
   setField: <K extends keyof SettingsForm>(key: K, value: SettingsForm[K]) => void;
+  onLogoUploadChange: (uploading: boolean) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   isPending: boolean;
   isLoading: boolean;
+  isUploadingLogo: boolean;
 }) {
   return (
     <div className="mt-6 grid min-w-0 gap-5 lg:grid-cols-[1.35fr_0.65fr] xl:gap-6">
@@ -714,13 +893,24 @@ function WelcomeSettingsSection({
           <div className="md:col-span-2">
             <ImageUploadField
               label="شعار صفحة الترحيب"
-              hint="يمكن إضافة الشعار أو استبداله أو حذفه. لا توجد صورة خلفية مستقلة للصفحة."
+              hint="شعار صفحة الترحيب مستقل عن شعار الهوية؛ يمكنك رفع شعار خاص أو استخدام شعار الهوية. لا توجد صورة خلفية مستقلة."
               kind="logo"
               imageUrl={form.welcomeLogoUrl}
+              onUploadingChange={onLogoUploadChange}
               onUploaded={(image) => { setField("welcomeLogoKey", image.key); setField("welcomeLogoUrl", image.url); }}
               onUrlChange={(url) => { setField("welcomeLogoKey", ""); setField("welcomeLogoUrl", url); }}
               onClear={() => { setField("welcomeLogoKey", ""); setField("welcomeLogoUrl", ""); }}
             />
+            {form.logoUrl && form.welcomeLogoUrl !== form.logoUrl ? (
+              <button
+                type="button"
+                className="brand-secondary-button w-full justify-center"
+                disabled={isUploadingLogo}
+                onClick={() => { setField("welcomeLogoKey", form.logoKey); setField("welcomeLogoUrl", form.logoUrl); }}
+              >
+                استخدام شعار الهوية في صفحة الترحيب (ثم اضغط حفظ)
+              </button>
+            ) : null}
           </div>
 
           <Field label="العنوان الرئيسي بالعربي">
@@ -754,9 +944,9 @@ function WelcomeSettingsSection({
 
         <div className="mt-7 flex flex-col items-stretch gap-4 border-t border-[#5A3825]/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs leading-6 text-[#9a806c]">بعد الحفظ ستظهر الإعدادات الجديدة للعميل عند فتح رابط المنيو من جديد.</p>
-          <button type="submit" disabled={isPending || isLoading} className="brand-primary-button w-full sm:w-auto">
+          <button type="submit" disabled={isPending || isLoading || isUploadingLogo} className="brand-primary-button w-full sm:w-auto">
             <Save className="h-5 w-5" />
-            {isPending ? "جاري الحفظ..." : "حفظ صفحة الترحيب"}
+            {isUploadingLogo ? "انتظر اكتمال رفع الشعار..." : isPending ? "جاري الحفظ..." : "حفظ صفحة الترحيب"}
           </button>
         </div>
       </form>
@@ -1108,9 +1298,68 @@ function CustomerQrSection({
   );
 }
 
+function MenuGroupsSection({
+  form, groupForm, groups, isLoading, setGroupField, onSubmit, onNew, onEdit,
+  onToggle, onDelete, isSaving, isToggling, isDeleting,
+}: {
+  form: SettingsForm;
+  groupForm: MenuGroupForm;
+  groups: AdminMenuGroup[];
+  isLoading: boolean;
+  setGroupField: <K extends keyof MenuGroupForm>(key: K, value: MenuGroupForm[K]) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onNew: () => void;
+  onEdit: (group: AdminMenuGroup) => void;
+  onToggle: (id: number, isVisible: boolean) => void;
+  onDelete: (id: number, nameAr: string) => void;
+  isSaving: boolean;
+  isToggling: boolean;
+  isDeleting: boolean;
+}) {
+  return (
+    <section className="mt-6 grid min-w-0 gap-5 lg:grid-cols-[0.72fr_1.28fr] xl:gap-6">
+      <form className="brand-panel min-w-0 p-4 min-[390px]:p-5 sm:p-7 lg:sticky lg:top-6 lg:self-start" onSubmit={onSubmit}>
+        <EditorHeader kicker="MAIN MENU CATEGORIES" title={groupForm.id ? "تعديل الفئة" : "فئة جديدة"} editing={Boolean(groupForm.id)} onNew={onNew} />
+        <div className="mt-6 space-y-5">
+          <Field label="اسم الفئة بالعربي"><input className="brand-input" required value={groupForm.nameAr} onChange={(e) => setGroupField("nameAr", e.target.value)} placeholder="مثل: المشروبات" /></Field>
+          <Field label="اسم الفئة بالإنجليزي"><input className="brand-input text-left" dir="ltr" value={groupForm.nameEn} onChange={(e) => setGroupField("nameEn", e.target.value)} placeholder="Drinks" /></Field>
+          <Field label="ترتيب الظهور"><input className="brand-input text-left" type="number" min={-9999} max={9999} value={groupForm.sortOrder} onChange={(e) => setGroupField("sortOrder", Number(e.target.value))} /></Field>
+          <ImageUploadField label="صورة الفئة" hint="هذه الصورة تظهر كبطاقة كبيرة في الصفحة الثانية." kind="category" imageUrl={groupForm.imageUrl}
+            onUploaded={(image) => { setGroupField("imageKey", image.key); setGroupField("imageUrl", image.url); }}
+            onUrlChange={(url) => { setGroupField("imageKey", ""); setGroupField("imageUrl", url); }}
+            onClear={() => { setGroupField("imageKey", ""); setGroupField("imageUrl", ""); }} />
+          <ToggleCard label="الفئة ظاهرة" hint="إخفاء الفئة يخفي أقسامها وأصنافها عن العميل دون حذفها." checked={groupForm.isVisible} onChange={(value) => setGroupField("isVisible", value)} compact />
+          <button type="submit" disabled={isSaving} className="brand-primary-button w-full"><Save className="h-5 w-5" />{isSaving ? "جاري الحفظ..." : groupForm.id ? "حفظ الفئة" : "إضافة الفئة"}</button>
+        </div>
+      </form>
+      <div className="brand-panel min-w-0 p-4 min-[390px]:p-5 sm:p-7">
+        <ListHeader kicker="MAIN CATEGORIES" title="إدارة الفئات الرئيسية" description="أنشئ المشروبات، الحلويات، الطعام والمياه، ثم اربط كل قسم بالفئة المناسبة." buttonLabel="فئة جديدة" onNew={onNew} />
+        {isLoading ? <LoadingText text="جاري تحميل الفئات..." /> : groups.length ? (
+          <div className="mt-5 grid min-w-0 gap-3">
+            {groups.map((group) => (
+              <article key={group.id} className="flex min-w-0 flex-col gap-4 rounded-[22px] border border-[#5A3825]/10 bg-white/65 p-4 min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
+                  {group.imageUrl ? <img src={group.imageUrl} alt={group.nameAr} className="h-16 w-16 shrink-0 rounded-2xl object-cover" /> : <div className="flex h-16 w-16 items-center justify-center rounded-2xl text-white" style={{ backgroundColor: form.primaryColor }}><Layers3 className="h-5 w-5" /></div>}
+                  <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold">{group.nameAr}</h3><Badge text={`ترتيب ${group.sortOrder}`} /><StateBadge active={group.isVisible} activeText="ظاهرة" inactiveText="مخفية" /></div><p className="mt-1 truncate text-xs text-[#9b806b]">{group.nameEn}</p></div>
+                </div>
+                <div className="flex gap-2">
+                  <IconButton title={group.isVisible ? "إخفاء" : "إظهار"} onClick={() => onToggle(group.id, !group.isVisible)} disabled={isToggling}>{group.isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton>
+                  <IconButton title="تعديل" onClick={() => onEdit(group)}><Pencil className="h-4 w-4" /></IconButton>
+                  <IconButton title="حذف" danger onClick={() => onDelete(group.id, group.nameAr)} disabled={isDeleting}><Trash2 className="h-4 w-4" /></IconButton>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : <EmptyState icon={<Layers3 className="h-9 w-9" />} title="لا توجد فئات بعد" description="أضف فئة أولًا، ثم أنشئ أقسامها وأصنافها." />}
+      </div>
+    </section>
+  );
+}
+
 function CategoriesSection({
   form,
   categoryForm,
+  menuGroups,
   categories,
   isLoading,
   setCategoryField,
@@ -1125,6 +1374,7 @@ function CategoriesSection({
 }: {
   form: SettingsForm;
   categoryForm: CategoryForm;
+  menuGroups: AdminMenuGroup[];
   categories: AdminCategory[];
   isLoading: boolean;
   setCategoryField: <K extends keyof CategoryForm>(key: K, value: CategoryForm[K]) => void;
@@ -1142,6 +1392,12 @@ function CategoriesSection({
       <form className="brand-panel min-w-0 p-4 min-[390px]:p-5 sm:p-7 lg:sticky lg:top-[max(1.5rem,var(--safe-top))] lg:self-start" onSubmit={onSubmit}>
         <EditorHeader kicker="CATEGORY EDITOR" title={categoryForm.id ? "تعديل القسم" : "قسم جديد"} editing={Boolean(categoryForm.id)} onNew={onNew} />
         <div className="mt-6 space-y-5">
+          <Field label="الفئة الرئيسية">
+            <select className="brand-input" required value={categoryForm.menuGroupId} onChange={(e) => setCategoryField("menuGroupId", Number(e.target.value))}>
+              <option value={0} disabled>اختر الفئة</option>
+              {menuGroups.map((group) => <option key={group.id} value={group.id}>{group.nameAr}</option>)}
+            </select>
+          </Field>
           <Field label="اسم القسم بالعربي"><input className="brand-input" value={categoryForm.nameAr} onChange={(e) => setCategoryField("nameAr", e.target.value)} placeholder="مثال: المشروبات الساخنة" required /></Field>
           <Field label="اسم القسم بالإنجليزي"><input className="brand-input text-left" dir="ltr" value={categoryForm.nameEn} onChange={(e) => setCategoryField("nameEn", e.target.value)} placeholder="Hot Drinks" /></Field>
           <Field label="ترتيب الظهور" hint="الأرقام الأقل تظهر أولًا للعميل."><input className="brand-input text-left" dir="ltr" type="number" min={-9999} max={9999} value={categoryForm.sortOrder} onChange={(e) => setCategoryField("sortOrder", Number(e.target.value))} required /></Field>
@@ -1174,6 +1430,7 @@ function CategoriesSection({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-bold text-[#463225]">{category.nameAr}</h3>
+                      <Badge text={menuGroups.find((group) => group.id === category.menuGroupId)?.nameAr || "بدون فئة"} />
                       <Badge text={`ترتيب ${category.sortOrder}`} />
                       <StateBadge active={category.isVisible} activeText="ظاهر" inactiveText="مخفي" />
                     </div>
@@ -1334,6 +1591,7 @@ function ImageUploadField({
   onUploaded,
   onUrlChange,
   onClear,
+  onUploadingChange,
 }: {
   label: string;
   hint: string;
@@ -1342,12 +1600,14 @@ function ImageUploadField({
   onUploaded: (image: { key: string; url: string }) => void;
   onUrlChange: (url: string) => void;
   onClear: () => void;
+  onUploadingChange?: (uploading: boolean) => void;
 }) {
   const [uploading, setUploading] = useState(false);
 
   async function handleFile(file: File | undefined) {
     if (!file) return;
     setUploading(true);
+    onUploadingChange?.(true);
     try {
       const uploaded = await uploadAdminImage(kind, file);
       onUploaded(uploaded);
@@ -1362,11 +1622,13 @@ function ImageUploadField({
       toast.error(error instanceof Error ? error.message : "تعذر رفع الصورة");
     } finally {
       setUploading(false);
+      onUploadingChange?.(false);
     }
   }
 
   return (
-    <Field label={label} hint={hint}>
+    <div className="block">
+      <span className="mb-2 block text-sm font-bold text-[#5a4232]">{label}</span>
       <div className="space-y-3 rounded-2xl border border-[#5A3825]/10 bg-[#fbf7f2] p-3">
         {imageUrl ? (
           <div className={`overflow-hidden rounded-2xl bg-white ${kind === "logo" ? "flex min-h-36 items-center justify-center p-4" : "aspect-[4/3]"}`}>
@@ -1403,7 +1665,8 @@ function ImageUploadField({
           <input className="brand-input text-left text-xs" dir="ltr" value={imageUrl} onChange={(e) => onUrlChange(e.target.value)} placeholder="https://..." />
         </div>
       </div>
-    </Field>
+      {hint ? <span className="mt-2 block text-xs leading-5 text-[#a08672]">{hint}</span> : null}
+    </div>
   );
 }
 

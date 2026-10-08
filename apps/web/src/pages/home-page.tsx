@@ -30,8 +30,16 @@ import { trpc } from "../lib/trpc";
 type Language = "ar" | "en";
 type MobileScreen = "categories" | "products";
 
+type PublicMenuGroup = {
+  id: number;
+  nameAr: string;
+  nameEn: string;
+  imageUrl: string;
+};
+
 type PublicCategory = {
   id: number;
+  menuGroupId: number;
   nameAr: string;
   nameEn: string;
   imageUrl: string;
@@ -82,8 +90,8 @@ const copy = {
     digitalMenu: "المنيو الرقمي",
     welcome: "أهلاً وسهلاً بكم",
     categoriesKicker: "اكتشف قائمتنا",
-    categoriesTitle: "الأقسام",
-    categoriesCount: "أقسام",
+    categoriesTitle: "الفئات",
+    categoriesCount: "فئات",
     featuredKicker: "اختيارات خاصة",
     featuredTitle: "الأصناف المميزة",
     menuKicker: "قائمتنا",
@@ -148,6 +156,11 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
     refetchOnWindowFocus: false,
   });
 
+  const menuGroups = trpc.cafe.publicMenuGroups.useQuery(undefined, {
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+
   const categories = trpc.cafe.publicCategories.useQuery(undefined, {
     retry: 1,
     refetchOnWindowFocus: false,
@@ -159,6 +172,7 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
   });
 
   const [activeCategoryId, setActiveCategoryId] = useState(0);
+  const [activeMenuGroupId, setActiveMenuGroupId] = useState(0);
   const [language, setLanguage] = useState<Language>("ar");
   const [selectedProduct, setSelectedProduct] =
     useState<PublicProduct | null>(null);
@@ -169,7 +183,6 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
   const [welcomeEntered, setWelcomeEntered] = useState(false);
 
   const languageInitialized = useRef(false);
-  const menuSectionRef = useRef<HTMLElement | null>(null);
 
   const brand = settings.data ?? defaultBrand;
   const text = copy[language];
@@ -208,35 +221,28 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
 
   const filteredProducts = useMemo(() => {
     const rows = products.data ?? [];
-
-    if (!activeCategoryId) {
-      return rows;
+    if (mobileScreen === "products" && activeMenuGroupId) {
+      const groupSectionIds = new Set(
+        (categories.data ?? [])
+          .filter((section) => section.menuGroupId === activeMenuGroupId)
+          .map((section) => section.id),
+      );
+      return rows.filter((product) =>
+        groupSectionIds.has(product.categoryId) &&
+        (!activeCategoryId || product.categoryId === activeCategoryId),
+      );
     }
+    return activeCategoryId ? rows.filter((product) => product.categoryId === activeCategoryId) : rows;
+  }, [products.data, categories.data, activeCategoryId, activeMenuGroupId, mobileScreen]);
 
-    return rows.filter(
-      (product) => product.categoryId === activeCategoryId,
-    );
-  }, [products.data, activeCategoryId]);
-
-  const featuredProducts = useMemo(
-    () =>
-      (products.data ?? []).filter(
-        (product) => product.isFeatured,
-      ),
-    [products.data],
-  );
-
-  const activeCategory = useMemo(
-    () =>
-      categories.data?.find(
-        (category) => category.id === activeCategoryId,
-      ),
-    [categories.data, activeCategoryId],
+  const activeMenuGroup = menuGroups.data?.find((group) => group.id === activeMenuGroupId);
+  const activeGroupSections = (categories.data ?? []).filter(
+    (section) => section.menuGroupId === activeMenuGroupId,
   );
 
   const mobileVisibleCategories = useMemo(() => {
     const term = mobileSearchTerm.trim().toLocaleLowerCase();
-    const rows = (categories.data ?? []) as PublicCategory[];
+    const rows = (menuGroups.data ?? []) as PublicMenuGroup[];
 
     if (!term || mobileScreen !== "categories") {
       return rows;
@@ -247,7 +253,7 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
         .toLocaleLowerCase()
         .includes(term),
     );
-  }, [categories.data, mobileScreen, mobileSearchTerm]);
+  }, [menuGroups.data, mobileScreen, mobileSearchTerm]);
 
   const mobileVisibleProducts = useMemo(() => {
     const term = mobileSearchTerm.trim().toLocaleLowerCase();
@@ -268,25 +274,9 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
     ? brand.nameAr
     : brand.nameEn || brand.nameAr;
 
-  const displayDescription = isArabic
-    ? brand.descriptionAr || defaultBrand.descriptionAr
-    : brand.descriptionEn ||
-      brand.descriptionAr ||
-      defaultBrand.descriptionEn;
-
-  const chooseCategory = (categoryId: number) => {
-    setActiveCategoryId(categoryId);
-
-    window.requestAnimationFrame(() => {
-      menuSectionRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
-  };
-
-  const openMobileCategory = (categoryId: number) => {
-    setActiveCategoryId(categoryId);
+  const openMobileCategory = (menuGroupId: number) => {
+    setActiveMenuGroupId(menuGroupId);
+    setActiveCategoryId(0);
     setMobileScreen("products");
     setMobileSearchOpen(false);
     setMobileSearchTerm("");
@@ -433,6 +423,7 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
         onEnter={() => {
           setWelcomeEntered(true);
           setMobileScreen("categories");
+          setActiveMenuGroupId(0);
           setActiveCategoryId(0);
           setMobileSearchOpen(false);
           setMobileSearchTerm("");
@@ -465,13 +456,13 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
         language={language}
         categories={mobileVisibleCategories}
         products={mobileVisibleProducts}
-        allCategories={(categories.data ?? []) as PublicCategory[]}
+        allCategories={activeGroupSections as PublicCategory[]}
         activeCategoryId={activeCategoryId}
-        activeCategory={activeCategory as PublicCategory | undefined}
+        activeCategory={activeMenuGroup as PublicMenuGroup | undefined}
         screen={mobileScreen}
         searchOpen={mobileSearchOpen}
         searchTerm={mobileSearchTerm}
-        categoriesLoading={categories.isLoading}
+        categoriesLoading={menuGroups.isLoading}
         productsLoading={products.isLoading}
         onSearchToggle={() => {
           setMobileSearchOpen((current) => !current);
@@ -484,6 +475,7 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
           if (brand.welcomeEnabled) {
             setWelcomeEntered(false);
             setMobileScreen("categories");
+            setActiveMenuGroupId(0);
             setActiveCategoryId(0);
             setMobileSearchOpen(false);
             setMobileSearchTerm("");
@@ -555,88 +547,25 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
           </div>
         </header>
 
-        <section className="px-3 pt-3 min-[390px]:px-4 sm:px-6 sm:pt-5">
-          <div className="relative overflow-hidden rounded-[30px] border border-black/5 bg-white/58 px-5 py-9 shadow-[0_28px_80px_rgba(68,42,26,0.10)] backdrop-blur-xl min-[390px]:rounded-[36px] min-[390px]:px-7 sm:px-10 sm:py-12 lg:grid lg:grid-cols-[1fr_0.72fr] lg:items-center lg:gap-10 lg:px-14 lg:py-14">
-            <div className="pointer-events-none absolute -left-16 -top-20 h-52 w-52 rounded-full border border-[#C7B099]/20" />
-            <div className="pointer-events-none absolute -bottom-20 -right-12 h-48 w-48 rounded-full border border-[#C7B099]/20" />
-
-            <div className="relative text-center lg:text-start">
-              <div
-                className="mx-auto inline-flex items-center gap-2 rounded-full border border-black/5 bg-white/60 px-3 py-2 text-[10px] font-bold lg:mx-0"
-                style={{ color: brand.primaryColor }}
-              >
-                <Crown className="h-3.5 w-3.5" />
-                {text.digitalMenu}
-              </div>
-
-              <h2
-                className="text-safe-wrap mx-auto mt-5 max-w-2xl text-[clamp(2rem,7vw,3.4rem)] font-bold leading-[1.16] lg:mx-0"
-                style={{ color: brand.primaryColor }}
-              >
-                {displayDescription}
-              </h2>
-
-              <p
-                className="brand-english mx-auto mt-4 max-w-xl text-[10px] leading-6 opacity-55 lg:mx-0"
-                style={{ color: brand.primaryColor }}
-              >
-                AL MALQA CAFÉ · RIYADH
-              </p>
-
-              <div
-                className="mx-auto mt-6 h-px w-16 opacity-25 lg:mx-0"
-                style={{ backgroundColor: brand.primaryColor }}
-              />
-
-              <p className="mt-5 text-sm font-medium leading-7 text-[#806754] min-[390px]:text-base">
-                {text.welcome}
-              </p>
-            </div>
-
-            <div className="relative mt-8 lg:mt-0">
-              <div className="mx-auto flex aspect-square w-full max-w-[17rem] items-center justify-center rounded-full border border-black/5 bg-white/65 p-6 shadow-[inset_0_0_0_1px_rgba(255,255,255,.7),0_24px_60px_rgba(72,43,27,.10)] min-[390px]:max-w-[19rem]">
-                <div className="flex h-full w-full items-center justify-center rounded-full border border-[#C7B099]/25 bg-[#F8EFE5]/60">
-                  <BrandMark
-                    logoUrl={brand.logoUrl}
-                    primaryColor={brand.primaryColor}
-                    hero
-                  />
-                </div>
-              </div>
-
-              <Sparkles
-                className="absolute right-[8%] top-[5%] h-5 w-5 opacity-25"
-                style={{ color: brand.primaryColor }}
-              />
-
-              <Sparkles
-                className="absolute bottom-[10%] left-[6%] h-4 w-4 opacity-20"
-                style={{ color: brand.primaryColor }}
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-11 px-3 min-[390px]:px-4 sm:mt-16 sm:px-6">
+        {mobileScreen === "categories" ? <section className="mt-11 px-3 min-[390px]:px-4 sm:mt-16 sm:px-6">
           <SectionHeading
             kicker={text.categoriesKicker}
             title={text.categoriesTitle}
             primaryColor={brand.primaryColor}
             side={
               <span className="text-[11px] font-medium text-[#9A806B]">
-                {categories.data?.length ?? 0}{" "}
+                {menuGroups.data?.length ?? 0}{" "}
                 {text.categoriesCount}
               </span>
             }
           />
 
-          {categories.isLoading ? (
+          {menuGroups.isLoading ? (
             <LoadingBlock text={text.loadingCategories} />
-          ) : categories.data?.length ? (
+          ) : menuGroups.data?.length ? (
             <div className="horizontal-scroll -mx-3 mt-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-3 pb-3 min-[390px]:-mx-4 min-[390px]:px-4 sm:mx-0 sm:flex sm:flex-wrap sm:justify-center sm:overflow-visible sm:px-0">
-              {categories.data.map((category) => {
-                const selected =
-                  activeCategoryId === category.id;
+              {menuGroups.data.map((category) => {
+                const selected = activeMenuGroupId === category.id;
 
                 const categoryName = localize(
                   language,
@@ -648,11 +577,7 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
                   <button
                     key={category.id}
                     type="button"
-                    onClick={() =>
-                      chooseCategory(
-                        selected ? 0 : category.id,
-                      )
-                    }
+                    onClick={() => openMobileCategory(category.id)}
                     className="group relative min-w-[76vw] max-w-[20rem] snap-center overflow-hidden rounded-[26px] border text-start shadow-[0_14px_42px_rgba(72,45,28,0.08)] transition sm:w-[18rem] sm:min-w-[18rem] sm:max-w-[18rem] sm:rounded-[28px] md:hover:-translate-y-1"
                     style={{
                       borderColor: selected
@@ -729,49 +654,19 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
               primaryColor={brand.primaryColor}
             />
           )}
-        </section>
+        </section> : null}
 
-        {featuredProducts.length > 0 ? (
-          <section className="mt-11 px-3 min-[390px]:px-4 sm:mt-16 sm:px-6">
-            <SectionHeading
-              kicker={text.featuredKicker}
-              title={text.featuredTitle}
-              primaryColor={brand.primaryColor}
-            />
-
-            <div className="mt-5 flex flex-wrap justify-center gap-4">
-              {featuredProducts
-                .slice(0, 6)
-                .map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    currency={brand.currency}
-                    primaryColor={brand.primaryColor}
-                    language={language}
-                    featured
-                    onOpen={() =>
-                      setSelectedProduct(product)
-                    }
-                  />
-                ))}
-            </div>
-          </section>
-        ) : null}
-
-        <section
-          ref={menuSectionRef}
+        {mobileScreen === "products" ? <section
           className="scroll-mt-4 mt-11 px-3 min-[390px]:px-4 sm:mt-16 sm:px-6"
         >
+          <button type="button" className="brand-secondary-button mb-5" onClick={showMobileCategories}>
+            <ChevronRight className="h-4 w-4" />{isArabic ? "العودة للفئات" : "Back to categories"}
+          </button>
           <SectionHeading
             kicker={text.menuKicker}
             title={
-              activeCategory
-                ? localize(
-                    language,
-                    activeCategory.nameAr,
-                    activeCategory.nameEn,
-                  )
+              activeMenuGroup
+                ? localize(language, activeMenuGroup.nameAr, activeMenuGroup.nameEn)
                 : text.menuTitle
             }
             primaryColor={brand.primaryColor}
@@ -785,7 +680,7 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
               onClick={() => setActiveCategoryId(0)}
             />
 
-            {categories.data?.map((category) => (
+            {activeGroupSections.map((category) => (
               <CategoryPill
                 key={category.id}
                 label={localize(
@@ -829,7 +724,7 @@ export function HomePage({ expectedSlug }: { expectedSlug?: string } = {}) {
               primaryColor={brand.primaryColor}
             />
           )}
-        </section>
+        </section> : null}
 
         <footer className="mt-14 px-3 pb-[max(1.5rem,var(--safe-bottom))] min-[390px]:px-4 sm:mt-20 sm:px-6">
           <div className="border-t border-[#5A3825]/10 py-8 text-center">
@@ -1017,11 +912,11 @@ function MobileMenuExperience({
 }: {
   brand: typeof defaultBrand;
   language: Language;
-  categories: PublicCategory[];
+  categories: PublicMenuGroup[];
   products: PublicProduct[];
   allCategories: PublicCategory[];
   activeCategoryId: number;
-  activeCategory: PublicCategory | undefined;
+  activeCategory: PublicMenuGroup | undefined;
   screen: MobileScreen;
   searchOpen: boolean;
   searchTerm: string;
@@ -1153,7 +1048,7 @@ function MobileMenuExperience({
               </div>
             ) : (
               <MobileEmpty
-                title={searchTerm ? (isArabic ? "لا توجد نتائج" : "No results") : text.noCategories}
+                title={searchTerm ? (isArabic ? "لا توجد نتائج" : "No results") : (isArabic ? "لا توجد فئات متاحة" : "No categories available")}
                 description={searchTerm ? (isArabic ? "جرّب كلمة بحث أخرى." : "Try another search term.") : text.noCategoriesDescription}
               />
             )}
