@@ -835,11 +835,11 @@ function WelcomeScreen({
 
       <section className="relative z-10 m-auto flex w-full max-w-xl flex-col items-center text-center">
         {brand.welcomeLogoUrl ? (
-          <div className="mb-7 flex h-32 w-32 items-center justify-center rounded-full border border-black/5 bg-white/60 p-4 shadow-[0_20px_55px_rgba(68,42,26,0.14)] backdrop-blur-xl sm:h-40 sm:w-40 sm:p-5">
+          <div className="mb-7 flex h-64 w-64 items-center justify-center rounded-full border border-black/5 bg-white/60 p-8 shadow-[0_20px_55px_rgba(68,42,26,0.14)] backdrop-blur-xl sm:h-80 sm:w-80 sm:p-10">
             <img
               src={brand.welcomeLogoUrl}
               alt={isArabic ? "شعار المقهى" : "Cafe logo"}
-              className="max-h-full max-w-full object-contain"
+              className="h-full w-full object-contain"
             />
           </div>
         ) : null}

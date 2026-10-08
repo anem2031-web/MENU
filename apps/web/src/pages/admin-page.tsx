@@ -1001,11 +1001,11 @@ function WelcomeCustomerPreview({ form }: { form: SettingsForm }) {
       <div className="pointer-events-none absolute -bottom-20 -left-16 h-64 w-64 rounded-full bg-white/35 blur-3xl" />
       <div className="relative z-[1] m-auto w-full max-w-sm text-center">
         {form.welcomeLogoUrl ? (
-          <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full border border-black/5 bg-white/55 p-3 shadow-[0_18px_45px_rgba(63,41,27,0.12)] backdrop-blur">
-            <img src={form.welcomeLogoUrl} alt="شعار صفحة الترحيب" className="max-h-full max-w-full object-contain" />
+          <div className="mx-auto flex h-56 w-56 items-center justify-center rounded-full border border-black/5 bg-white/55 p-6 shadow-[0_18px_45px_rgba(63,41,27,0.12)] backdrop-blur">
+            <img src={form.welcomeLogoUrl} alt="شعار صفحة الترحيب" className="h-full w-full object-contain" />
           </div>
         ) : (
-          <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full border border-dashed bg-white/35" style={{ borderColor: `${form.primaryColor}44`, color: form.primaryColor }}>
+          <div className="mx-auto flex h-56 w-56 items-center justify-center rounded-full border border-dashed bg-white/35" style={{ borderColor: `${form.primaryColor}44`, color: form.primaryColor }}>
             <ImageIcon className="h-8 w-8 opacity-55" />
           </div>
         )}
