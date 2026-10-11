@@ -13,6 +13,8 @@ import { appRouter } from "./trpc/router.js";
 import { createContext } from "./trpc/context.js";
 import { uploadRouter } from "./uploads/router.js";
 import { getImageObject } from "./storage/s3.js";
+import { createQrRedirectRouter } from "./qr/router.js";
+import { qrRepository } from "./qr/repository.js";
 
 const app = express();
 
@@ -111,6 +113,8 @@ app.get(
 );
 
 app.use("/api/uploads", uploadRouter);
+// Must precede the frontend SPA fallback. The encoded path never changes.
+app.use("/q", createQrRedirectRouter(qrRepository));
 
 app.use(
   "/trpc",

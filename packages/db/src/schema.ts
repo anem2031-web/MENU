@@ -119,6 +119,28 @@ export const cafeSettings = mysqlTable(
   ],
 );
 
+// One immutable customer QR identity. Only its destination and revision may change.
+export const customerQr = mysqlTable("customer_qr", {
+  id: int("id").primaryKey(),
+  token: varchar("token", { length: 32 }).notNull(),
+  stableUrl: varchar("stable_url", { length: 1000 }).notNull(),
+  destinationUrl: varchar("destination_url", { length: 2000 }).notNull(),
+  revision: int("revision").notNull().default(1),
+  createdBy: int("created_by").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+}, (table) => [uniqueIndex("customer_qr_token_unique").on(table.token)]);
+
+export const customerQrHistory = mysqlTable("customer_qr_history", {
+  id: int("id").autoincrement().primaryKey(),
+  qrId: int("qr_id").notNull().references(() => customerQr.id),
+  revision: int("revision").notNull(),
+  previousUrl: varchar("previous_url", { length: 2000 }),
+  destinationUrl: varchar("destination_url", { length: 2000 }).notNull(),
+  changedBy: int("changed_by").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [uniqueIndex("customer_qr_history_revision_unique").on(table.qrId, table.revision)]);
+
 /**
  * الفئات الرئيسية للمنيو، تحتوي الفئة الواحدة على عدة أقسام.
  */

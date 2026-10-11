@@ -11,7 +11,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "qr:migrate": "tsx src/migrate-qr.ts"
   },
   "devDependencies": {
     "dotenv": "^17.4.2",

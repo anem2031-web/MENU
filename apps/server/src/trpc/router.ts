@@ -6,6 +6,8 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { clearSessionCookie, createSessionToken, setSessionCookie } from "../auth/session.js";
 import { protectedProcedure, publicProcedure, router } from "./trpc.js";
+import { createQrAdminRouter } from "../qr/router.js";
+import { qrRepository } from "../qr/repository.js";
 
 const DEFAULT_SETTINGS = {
   nameAr: "كوفي الملقا",
@@ -308,6 +310,7 @@ async function ensureCategoryExists(categoryId: number) {
 }
 
 const adminRouter = router({
+  qr: createQrAdminRouter(qrRepository),
   status: protectedProcedure.query(({ ctx }) => ({
     authenticated: true as const,
     user: ctx.user,
