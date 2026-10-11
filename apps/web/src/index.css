@@ -425,7 +425,8 @@ select {
 
 .mobile-menu-shell.is-categories .mobile-category-list {
   height: 100%;
-  grid-auto-rows: minmax(72px, 1fr);
+  /* Size every row as one of four visible cards, including additional rows. */
+  grid-auto-rows: max(72px, calc((100% - 3 * var(--mobile-category-gap)) / 4));
 }
 
 .mobile-menu-shell.is-categories .mobile-category-card {
@@ -434,8 +435,9 @@ select {
 }
 
 .mobile-category-list {
+  --mobile-category-gap: 0.6rem;
   display: grid;
-  gap: 0.6rem;
+  gap: var(--mobile-category-gap);
 }
 
 .mobile-category-card {
