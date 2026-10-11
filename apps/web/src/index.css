@@ -459,7 +459,8 @@ select {
   width: 40%;
   min-width: 0;
   transform: translateY(-50%);
-  text-align: start;
+  /* This visual column stays on the right even when its text direction is LTR. */
+  text-align: right;
 }
 
 .mobile-category-chevron {

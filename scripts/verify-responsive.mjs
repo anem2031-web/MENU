@@ -19,6 +19,7 @@ const checks = [
   ["horizontal overflow guard", files.css.includes("overflow-x: clip")],
   ["customer responsive product grid", files.home.includes("min-[430px]:grid-cols-2")],
   ["customer horizontal category scroller", files.home.includes("horizontal-scroll")],
+  ["mobile category copy alignment independent of language", /\.mobile-category-card-copy\s*\{[^}]*text-align:\s*right\s*;/s.test(files.css)],
   ["admin mobile tabs", files.admin.includes("admin-tabs")],
   ["admin responsive product card", files.admin.includes("min-[480px]:flex-row")],
 ];
