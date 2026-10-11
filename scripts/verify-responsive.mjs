@@ -20,6 +20,9 @@ const checks = [
   ["customer responsive product grid", files.home.includes("min-[430px]:grid-cols-2")],
   ["customer horizontal category scroller", files.home.includes("horizontal-scroll")],
   ["mobile category copy alignment independent of language", /\.mobile-category-card-copy\s*\{[^}]*text-align:\s*right\s*;/s.test(files.css)],
+  ["mobile categories fill the available viewport height", /\.mobile-menu-shell\.is-categories\s*\{[^}]*height:\s*100dvh;[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\) auto;/s.test(files.css)],
+  ["category navigation reserves its actual height", /\.mobile-menu-shell\.is-categories \.mobile-bottom-nav\s*\{[^}]*position:\s*static;/s.test(files.css)],
+  ["category rows adapt while allowing short-screen scrolling", files.css.includes("grid-auto-rows: minmax(72px, 1fr)") && /\.mobile-menu-shell\.is-categories \.mobile-menu-content\s*\{[^}]*overflow-y:\s*auto;/s.test(files.css)],
   ["admin mobile tabs", files.admin.includes("admin-tabs")],
   ["admin responsive product card", files.admin.includes("min-[480px]:flex-row")],
 ];

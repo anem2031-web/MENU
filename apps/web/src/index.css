@@ -302,8 +302,21 @@ select {
 
 .mobile-menu-shell.is-categories {
   background: #fcfaf7;
-  /* Keep the last category fully visible above the fixed two-button navigation. */
-  padding-bottom: calc(74px + var(--safe-bottom));
+}
+
+@media (width < 40rem) {
+  .mobile-menu-shell.is-categories {
+    /* Let the actual header/nav sizes determine the space available for cards. */
+    height: 100vh;
+    height: 100dvh;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    padding-bottom: 0;
+  }
+}
+
+.mobile-menu-shell.is-categories .mobile-bottom-nav {
+  position: static;
 }
 
 .mobile-menu-header {
@@ -401,6 +414,23 @@ select {
 
 .mobile-menu-shell.is-categories .mobile-menu-content {
   padding-top: 0.15rem;
+  min-height: 0;
+  /* Retain access on very short landscape screens or if more categories are added. */
+  overflow-y: auto;
+}
+
+.mobile-menu-shell.is-categories .mobile-menu-content > section {
+  height: 100%;
+}
+
+.mobile-menu-shell.is-categories .mobile-category-list {
+  height: 100%;
+  grid-auto-rows: minmax(72px, 1fr);
+}
+
+.mobile-menu-shell.is-categories .mobile-category-card {
+  height: 100%;
+  min-height: 72px;
 }
 
 .mobile-category-list {
